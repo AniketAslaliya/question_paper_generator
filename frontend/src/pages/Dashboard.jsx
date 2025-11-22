@@ -71,22 +71,69 @@ const Dashboard = () => {
                     </div>
 
                     <div className="card bg-white border-2 border-black">
+                        <div className="flex items-center justify-between">
+                            <div className="flex-1 min-w-0">
+                                <p className="text-gray-600 text-xs sm:text-sm font-semibold mb-1 truncate">This Month</p>
+                                <p className="text-3xl sm:text-4xl font-bold text-black">{stats.thisMonth}</p>
+                            </div>
+                            <div className="bg-black text-white p-3 sm:p-4 rounded-xl flex-shrink-0">
+                                <Calendar className="w-6 h-6 sm:w-8 sm:h-8" />
+                            </div>
+                        </div>
                     </div>
 
-                    {/* Papers List */}
-                    <div className="card">
-                        <h2 className="section-title">Your Question Papers</h2>
+                    <div className="card bg-white border-2 border-black">
+                        <div className="flex items-center justify-between">
+                            <div className="flex-1 min-w-0">
+                                <p className="text-gray-600 text-xs sm:text-sm font-semibold mb-1 truncate">This Week</p>
+                                <p className="text-3xl sm:text-4xl font-bold text-black">{stats.thisWeek}</p>
+                            </div>
+                            <div className="bg-black text-white p-3 sm:p-4 rounded-xl flex-shrink-0">
+                                <Sparkles className="w-6 h-6 sm:w-8 sm:h-8" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
-                        {papers.length === 0 ? (
-                            <div className="text-center py-16">
-                                <div className="bg-blue-50 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6">
-                                    <FileText className="w-12 h-12 text-dark/30" />
+                {/* Papers List */}
+                <div className="card">
+                    <h2 className="section-title">Your Question Papers</h2>
+
+                    {papers.length === 0 ? (
+                        <div className="text-center py-16">
+                            <div className="bg-blue-50 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6">
+                                <FileText className="w-12 h-12 text-dark/30" />
+                            </div>
+                            <h3 className="text-xl font-bold text-dark mb-2">No papers yet</h3>
+                            <p className="text-dark/70 mb-6">Create your first question paper to get started</p>
+                            <button
+                                onClick={() => navigate('/create-paper')}
+                                    <Plus className="w-5 h-5 mr-2" />
+                            Create New Paper
+                        </button>
+                            </div>
+                ) : (
+                <div className="grid gap-4">
+                    {papers.map((paper) => (
+                        <div key={paper._id} className="p-4 border-2 border-gray-100 rounded-xl hover:border-black transition-all cursor-pointer group" onClick={() => navigate(`/paper/${paper._id}`)}>
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h3 className="font-bold text-lg text-black group-hover:text-blue-600 transition-colors">{paper.paperName}</h3>
+                                    <p className="text-sm text-gray-500">{paper.subject || 'General'} • {new Date(paper.createdAt).toLocaleDateString()}</p>
                                 </div>
-                                <h3 className="text-xl font-bold text-dark mb-2">No papers yet</h3>
-                                <p className="text-dark/70 mb-6">Create your first question paper to get started</p>
-                                <button
-                                    onClick={() => navigate('/create-paper')}
-                                    className="btn-primary"
-                                >
+                                <div className="bg-gray-50 p-2 rounded-lg group-hover:bg-blue-50 transition-colors">
+                                    <TrendingUp className="w-5 h-5 text-gray-400 group-hover:text-blue-600" />
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+                        )}
+            </div>
+        </div>
+        </div >
+        </div >
+    );
+};
 
-                                    export default Dashboard;
+export default Dashboard;
