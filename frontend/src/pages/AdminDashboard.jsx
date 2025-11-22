@@ -184,22 +184,6 @@ const AdminDashboard = () => {
 
                                     return (
                                         <tr key={paper._id}>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">{paper.paperName}</td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{paper.subject || 'N/A'}</td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
-                                                <div className="flex items-center gap-2">
-                                                    <span>{paper.userName || 'Unknown'}</span>
-                                                    {paper.userRole && (
-                                                        <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${paper.userRole === 'admin' ? 'bg-purple-100 text-purple-800' :
-                                                                paper.userRole === 'teacher' ? 'bg-blue-100 text-blue-800' :
-                                                                    'bg-green-100 text-green-800'
-                                                            }`}>
-                                                            {paper.userRole}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{totalQuestions}</td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{totalMarks}</td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{new Date(paper.createdAt).toLocaleDateString()}</td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
