@@ -108,31 +108,32 @@ const Dashboard = () => {
                             <p className="text-dark/70 mb-6">Create your first question paper to get started</p>
                             <button
                                 onClick={() => navigate('/create-paper')}
-                                    <Plus className="w-5 h-5 mr-2" />
-                            Create New Paper
-                        </button>
-                            </div>
-                ) : (
-                <div className="grid gap-4">
-                    {papers.map((paper) => (
-                        <div key={paper._id} className="p-4 border-2 border-gray-100 rounded-xl hover:border-black transition-all cursor-pointer group" onClick={() => navigate(`/paper/${paper._id}`)}>
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <h3 className="font-bold text-lg text-black group-hover:text-blue-600 transition-colors">{paper.paperName}</h3>
-                                    <p className="text-sm text-gray-500">{paper.subject || 'General'} • {new Date(paper.createdAt).toLocaleDateString()}</p>
-                                </div>
-                                <div className="bg-gray-50 p-2 rounded-lg group-hover:bg-blue-50 transition-colors">
-                                    <TrendingUp className="w-5 h-5 text-gray-400 group-hover:text-blue-600" />
-                                </div>
-                            </div>
+                                className="btn-primary"
+                            >
+                                <Plus className="w-5 h-5 mr-2" />
+                                Create New Paper
+                            </button>
                         </div>
-                    ))}
+                    ) : (
+                        <div className="grid gap-4">
+                            {papers.map((paper) => (
+                                <div key={paper._id} className="p-4 border-2 border-gray-100 rounded-xl hover:border-black transition-all cursor-pointer group" onClick={() => navigate(`/paper/${paper._id}`)}>
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <h3 className="font-bold text-lg text-black group-hover:text-blue-600 transition-colors">{paper.paperName}</h3>
+                                            <p className="text-sm text-gray-500">{paper.subject || 'General'} • {new Date(paper.createdAt).toLocaleDateString()}</p>
+                                        </div>
+                                        <div className="bg-gray-50 p-2 rounded-lg group-hover:bg-blue-50 transition-colors">
+                                            <TrendingUp className="w-5 h-5 text-gray-400 group-hover:text-blue-600" />
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
-                        )}
             </div>
         </div>
-        </div >
-        </div >
     );
 };
 
