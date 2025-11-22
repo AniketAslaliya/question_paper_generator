@@ -20,12 +20,11 @@ const AdminRoute = ({ children }) => {
 };
 
 function App() {
-    const initAuth = useAuthStore((state) => state.initAuth);
+    const loadUser = useAuthStore((state) => state.loadUser);
 
     useEffect(() => {
-        const unsubscribe = initAuth();
-        return () => unsubscribe();
-    }, [initAuth]);
+        loadUser();
+    }, [loadUser]);
 
     return (
         <Router>

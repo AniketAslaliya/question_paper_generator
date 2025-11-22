@@ -5,59 +5,62 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const auth = require('../middleware/auth');
 
-// Firebase Login / Sync
-router.post('/firebase-login', auth, async (req, res) => {
+// Register
+router.post('/register', async (req, res) => {
+    const { name, email, password } = req.body;
     try {
-        const { email, id: firebaseUid } = req.user; // From auth middleware
-        
         let user = await User.findOne({ email });
-        
-        if (!user) {
-            // Create new user if not exists (e.g. Google Sign In first time)
-            user = new User({
-                name: req.body.name || email.split('@')[0],
-                email,
-                passwordHash: 'firebase_managed',
-                provider: 'firebase',
-                firebaseUid
-            });
-            await user.save();
-        }
+        if (user) return res.status(400).json({ message: 'User already exists' });
 
-        user.lastLogin = Date.now();
+        const salt = await bcrypt.genSalt(10);
+        const passwordHash = await bcrypt.hash(password, salt);
+
+        user = new User({ name, email, passwordHash });
         await user.save();
 
-        // Log activity
-        // if (req.logActivity) await req.logActivity('login');
+        const payload = { id: user.id, role: user.role, name: user.name };
+        const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1d' });
 
-        res.json({ id: user.id, name: user.name, email: user.email, role: user.role });
+        res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
     } catch (err) {
         console.error(err.message);
         res.status(500).send('Server error');
     }
 });
 
-// Firebase Register (Explicit)
-router.post('/firebase-register', auth, async (req, res) => {
+// Login
+router.post('/login', async (req, res) => {
+    const { email, password, rememberMe } = req.body;
+    console.log('Login attempt:', { email, passwordProvided: !!password, rememberMe });
+
     try {
-        const { email, id: firebaseUid } = req.user;
-        const { name } = req.body;
+        const user = await User.findOne({ email });
+        if (!user) {
+            console.log('User not found:', email);
+            return res.status(400).json({ message: 'Invalid credentials' });
+        }
 
-        let user = await User.findOne({ email });
-        if (user) return res.status(400).json({ message: 'User already exists' });
+        console.log('User found, comparing password...');
+        const isMatch = await bcrypt.compare(password, user.passwordHash);
+        if (!isMatch) {
+            console.log('Password mismatch for:', email);
+            return res.status(400).json({ message: 'Invalid credentials' });
+        }
 
-        user = new User({
-            name,
-            email,
-            passwordHash: 'firebase_managed',
-            provider: 'firebase',
-            firebaseUid
-        });
+        user.lastLogin = Date.now();
         await user.save();
 
-        res.json({ id: user.id, name: user.name, email: user.email, role: user.role });
+        const payload = { id: user.id, role: user.role, name: user.name };
+        const expiresIn = rememberMe ? '30d' : '1d';
+        const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn });
+
+        // Log activity
+        if (req.logActivity) await req.logActivity('login');
+
+        console.log('Login successful for:', email, '| Token expires in:', expiresIn);
+        res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
     } catch (err) {
-        console.error(err.message);
+        console.error('Login error:', err.message);
         res.status(500).send('Server error');
     }
 });
@@ -65,7 +68,7 @@ router.post('/firebase-register', auth, async (req, res) => {
 // Get User
 router.get('/me', auth, async (req, res) => {
     try {
-        const user = await User.findOne({ email: req.user.email }).select('-passwordHash');
+        const user = await User.findById(req.user.id).select('-passwordHash');
         res.json(user);
     } catch (err) {
         console.error(err.message);
