@@ -51,8 +51,17 @@ router.get('/users', auth, adminAuth, async (req, res) => {
 // Get All Papers
 router.get('/papers', auth, adminAuth, async (req, res) => {
     try {
-        const papers = await Paper.find().sort({ createdAt: -1 });
-        res.json(papers);
+        const papers = await Paper.find()
+            .populate('userId', 'name email role')
+            .sort({ createdAt: -1 });
+
+        // Add userRole to each paper
+        const papersWithRole = papers.map(paper => ({
+            ...paper.toObject(),
+            userRole: paper.userId?.role || null
+        }));
+
+        res.json(papersWithRole);
     } catch (err) {
         console.error(err);
         res.status(500).send('Server Error');
