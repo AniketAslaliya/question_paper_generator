@@ -97,106 +97,116 @@ const LoginPage = () => {
                         </div>
 
                         {error && (
-                            <input
-                                type="text"
-                                value={formData.name}
-                                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                className="w-full pl-12 pr-4 py-4 bg-white text-black border-2 border-gray-300 rounded-xl focus:border-black focus:ring-4 focus:ring-black/10 transition-all font-medium placeholder:text-gray-400"
-                                placeholder="John Doe"
-                                required={!isLogin}
-                            />
+                            <div className="mb-6 p-4 bg-red-50 border-2 border-red-200 rounded-xl flex items-center gap-3">
+                                <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+                                <p className="text-sm font-medium text-red-800">{error}</p>
+                            </div>
+                        )}
+
+                        <form onSubmit={handleSubmit} className="space-y-6">
+                            {!isLogin && (
+                                <div>
+                                    <label className="block text-sm font-bold text-black mb-2">Full Name</label>
+                                    <div className="relative">
+                                        <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                                        <input
+                                            type="text"
+                                            value={formData.name}
+                                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                            className="w-full pl-12 pr-4 py-4 bg-white text-black border-2 border-gray-300 rounded-xl focus:border-black focus:ring-4 focus:ring-black/10 transition-all font-medium placeholder:text-gray-400"
+                                            placeholder="John Doe"
+                                            required={!isLogin}
+                                        />
                                     </div>
-                </div>
+                                </div>
                             )}
 
-                <div>
-                    <label className="block text-sm font-bold text-black mb-2">Email Address</label>
-                    <div className="relative">
-                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                        <input
-                            type="email"
-                            value={formData.email}
-                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                            className="w-full pl-12 pr-4 py-4 bg-white text-black border-2 border-gray-300 rounded-xl focus:border-black focus:ring-4 focus:ring-black/10 transition-all font-medium placeholder:text-gray-400"
-                            placeholder="you@example.com"
-                            required
-                        />
+                            <div>
+                                <label className="block text-sm font-bold text-black mb-2">Email Address</label>
+                                <div className="relative">
+                                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                                    <input
+                                        type="email"
+                                        value={formData.email}
+                                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                        className="w-full pl-12 pr-4 py-4 bg-white text-black border-2 border-gray-300 rounded-xl focus:border-black focus:ring-4 focus:ring-black/10 transition-all font-medium placeholder:text-gray-400"
+                                        placeholder="you@example.com"
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-bold text-black mb-2">Password</label>
+                                <div className="relative">
+                                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                                    <input
+                                        type="password"
+                                        value={formData.password}
+                                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                                        className="w-full pl-12 pr-4 py-4 bg-white text-black border-2 border-gray-300 rounded-xl focus:border-black focus:ring-4 focus:ring-black/10 transition-all font-medium placeholder:text-gray-400"
+                                        placeholder="••••••••"
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            {isLogin && (
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="checkbox"
+                                        id="rememberMe"
+                                        checked={rememberMe}
+                                        onChange={(e) => setRememberMe(e.target.checked)}
+                                        className="w-4 h-4 rounded border-2 border-gray-300 text-black focus:ring-2 focus:ring-black/20"
+                                    />
+                                    <label htmlFor="rememberMe" className="text-sm font-medium text-gray-700 cursor-pointer">
+                                        Remember me for 30 days
+                                    </label>
+                                </div>
+                            )}
+
+                            <button
+                                type="submit"
+                                disabled={loading}
+                                className="w-full bg-black text-white py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-3 hover:bg-gray-800 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed group"
+                            >
+                                {loading ? 'Processing...' : isLogin ? 'Sign In' : 'Create Account'}
+                                <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                            </button>
+                        </form>
+
+                        <div className="mt-8 text-center">
+                            <button
+                                onClick={() => {
+                                    setIsLogin(!isLogin);
+                                    setError('');
+                                }}
+                                className="text-black font-bold hover:underline decoration-2 underline-offset-4"
+                            >
+                                {isLogin ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Trust Indicators */}
+                    <div className="mt-6 flex items-center justify-center gap-6 text-sm text-gray-600 font-medium">
+                        <div className="flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-green-600" />
+                            <span>Secure</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-green-600" />
+                            <span>Fast</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-green-600" />
+                            <span>Reliable</span>
+                        </div>
                     </div>
                 </div>
-
-                <div>
-                    <label className="block text-sm font-bold text-black mb-2">Password</label>
-                    <div className="relative">
-                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                        <input
-                            type="password"
-                            value={formData.password}
-                            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                            className="w-full pl-12 pr-4 py-4 bg-white text-black border-2 border-gray-300 rounded-xl focus:border-black focus:ring-4 focus:ring-black/10 transition-all font-medium placeholder:text-gray-400"
-                            placeholder="••••••••"
-                            required
-                        />
-                    </div>
-                </div>
-
-                {isLogin && (
-                    <div className="flex items-center gap-2">
-                        <input
-                            type="checkbox"
-                            id="rememberMe"
-                            checked={rememberMe}
-                            onChange={(e) => setRememberMe(e.target.checked)}
-                            className="w-4 h-4 rounded border-2 border-gray-300 text-black focus:ring-2 focus:ring-black/20"
-                        />
-                        <label htmlFor="rememberMe" className="text-sm font-medium text-gray-700 cursor-pointer">
-                            Remember me for 30 days
-                        </label>
-                    </div>
-                )}
-
-                <button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full bg-black text-white py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-3 hover:bg-gray-800 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed group"
-                >
-                    {loading ? 'Processing...' : isLogin ? 'Sign In' : 'Create Account'}
-                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                </button>
-            </form>
-
-            <div className="mt-8 text-center">
-                <button
-                    onClick={() => {
-                        setIsLogin(!isLogin);
-                        setError('');
-                    }}
-                    className="text-black font-bold hover:underline decoration-2 underline-offset-4"
-                >
-                    {isLogin ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}
-                </button>
             </div>
-
-
         </div>
-
-                    {/* Trust Indicators */ }
-    <div className="mt-6 flex items-center justify-center gap-6 text-sm text-gray-600 font-medium">
-        <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-green-600" />
-            <span>Secure</span>
-        </div>
-        <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-green-600" />
-            <span>Fast</span>
-        </div>
-        <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-green-600" />
-            <span>Reliable</span>
-        </div>
-    </div>
-                </div >
-            </div >
-        </div >
     );
 };
 
