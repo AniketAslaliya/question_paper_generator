@@ -48,12 +48,23 @@ const Dashboard = () => {
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
                 {/* Header */}
                 <div className="mb-12">
-                    <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-black mb-3">
-                        Welcome back, {user?.name}! 👋
-                    </h1>
-                    <p className="text-gray-600 text-lg sm:text-xl font-medium">
-                        Create and manage your question papers with AI assistance
-                    </p>
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+                        <div>
+                            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-black mb-3">
+                                Welcome back, {user?.name}! 👋
+                            </h1>
+                            <p className="text-gray-600 text-lg sm:text-xl font-medium">
+                                Create and manage your question papers with AI assistance
+                            </p>
+                        </div>
+                        <button
+                            onClick={() => navigate('/create-paper')}
+                            className="btn-primary flex items-center gap-2 whitespace-nowrap self-start sm:self-auto"
+                        >
+                            <Plus className="w-5 h-5" />
+                            Create New Paper
+                        </button>
+                    </div>
                 </div>
 
                 {/* Stats Cards */}

@@ -68,10 +68,16 @@ router.post('/login', async (req, res) => {
 // Get User
 router.get('/me', auth, async (req, res) => {
     try {
+        console.log('📋 Fetching user data for:', req.user.id);
         const user = await User.findById(req.user.id).select('-passwordHash');
+        if (!user) {
+            console.log('❌ User not found in database:', req.user.id);
+            return res.status(404).json({ message: 'User not found' });
+        }
+        console.log('✅ User found:', user.email);
         res.json(user);
     } catch (err) {
-        console.error(err.message);
+        console.error('❌ Error in /me endpoint:', err.message);
         res.status(500).send('Server error');
     }
 });
