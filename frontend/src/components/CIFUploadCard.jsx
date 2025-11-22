@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Upload, FileCheck, Edit2, Save } from 'lucide-react';
 import axios from 'axios';
+import { API_URL } from '../api/axiosConfig';
 
 const CIFUploadCard = ({ onCIFParsed, initialData }) => {
     const [cifData, setCifData] = useState(initialData || null);
@@ -18,7 +19,7 @@ const CIFUploadCard = ({ onCIFParsed, initialData }) => {
 
         try {
             const token = localStorage.getItem('token');
-            const res = await axios.post('http://localhost:5000/api/papers/parse-cif', formData, {
+            const res = await axios.post(`${API_URL}/api/papers/parse-cif`, formData, {
                 headers: {
                     'Content-Type': 'multipart/form-data',
                     Authorization: `Bearer ${token}`

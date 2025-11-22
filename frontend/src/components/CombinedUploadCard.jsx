@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Upload, FileCheck, X, Plus } from 'lucide-react';
 import axios from 'axios';
+import { API_URL } from '../api/axiosConfig';
 
 const CombinedUploadCard = ({ onUploadComplete, onCIFParsed }) => {
     const [files, setFiles] = useState([]);
@@ -24,7 +25,7 @@ const CombinedUploadCard = ({ onUploadComplete, onCIFParsed }) => {
 
         try {
             const token = localStorage.getItem('token');
-            const res = await axios.post('http://localhost:5000/api/papers/parse-cif', formData, {
+            const res = await axios.post(`${API_URL}/api/papers/parse-cif`, formData, {
                 headers: {
                     'Content-Type': 'multipart/form-data',
                     Authorization: `Bearer ${token}`
@@ -61,7 +62,7 @@ const CombinedUploadCard = ({ onUploadComplete, onCIFParsed }) => {
 
         try {
             const token = localStorage.getItem('token');
-            const res = await axios.post('http://localhost:5000/api/papers/create-phase1-multi', formData, {
+            const res = await axios.post(`${API_URL}/api/papers/create-phase1-multi`, formData, {
                 headers: {
                     'Content-Type': 'multipart/form-data',
                     Authorization: `Bearer ${token}`

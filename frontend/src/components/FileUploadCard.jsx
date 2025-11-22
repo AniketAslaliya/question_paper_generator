@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { UploadCloud, File, X, CheckCircle } from 'lucide-react';
 import axios from 'axios';
+import { API_URL } from '../api/axiosConfig';
 
 const FileUploadCard = ({ onUploadComplete }) => {
     const [file, setFile] = useState(null);
@@ -26,7 +27,7 @@ const FileUploadCard = ({ onUploadComplete }) => {
 
         try {
             const token = localStorage.getItem('token');
-            const res = await axios.post('http://localhost:5000/api/papers/create-phase1', formData, {
+            const res = await axios.post(`${API_URL}/api/papers/create-phase1`, formData, {
                 headers: {
                     'Content-Type': 'multipart/form-data',
                     Authorization: `Bearer ${token}`

@@ -1,10 +1,3 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
-import Navbar from '../components/Navbar';
-import StepIndicator from '../components/StepIndicator';
-import CombinedUploadCard from '../components/CombinedUploadCard';
-import TemplateSelector from '../components/TemplateSelector';
 import WeightageTable from '../components/WeightageTable';
 import SectionConfigCard from '../components/SectionConfigCard';
 import QuestionTypeSelector from '../components/QuestionTypeSelector';
@@ -78,19 +71,19 @@ const CreatePaperPage = () => {
             const token = localStorage.getItem('token');
 
             if (step === 3) {
-                await axios.post('http://localhost:5000/api/papers/create-phase2', {
+                await axios.post(`${API_URL}/api/papers/create-phase2`, {
                     paperId,
                     config: { ...config, cifData }
                 }, { headers: { Authorization: `Bearer ${token}` } });
 
-                const res = await axios.post('http://localhost:5000/api/papers/create-phase3', {
+                const res = await axios.post(`${API_URL}/api/papers/create-phase3`, {
                     paperId
                 }, { headers: { Authorization: `Bearer ${token}` } });
 
                 setGeneratedContent(res.data.generatedData.html || '<h1>Generated Paper</h1><p>Content here...</p>');
                 setStep(4);
             } else if (step === 4) {
-                const res = await axios.post(`http://localhost:5000/api/papers/${paperId}/regenerate`, {}, {
+                const res = await axios.post(`${API_URL}/api/papers/${paperId}/regenerate`, {}, {
                     headers: { Authorization: `Bearer ${token}` }
                 });
                 setGeneratedContent(res.data.generatedData.html || '<h1>Generated Paper</h1><p>Content here...</p>');
@@ -130,7 +123,7 @@ const CreatePaperPage = () => {
         const loadDraft = async () => {
             try {
                 const token = localStorage.getItem('token');
-                const res = await axios.get('http://localhost:5000/api/drafts/latest', {
+                const res = await axios.get(`${API_URL}/api/drafts/latest`, {
                     headers: { Authorization: `Bearer ${token}` }
                 });
 
@@ -152,7 +145,7 @@ const CreatePaperPage = () => {
         const saveDraft = async () => {
             try {
                 const token = localStorage.getItem('token');
-                await axios.post('http://localhost:5000/api/drafts/save', {
+                await axios.post(`${API_URL}/api/drafts/save`, {
                     paperId,
                     config,
                     chapters,
@@ -176,7 +169,7 @@ const CreatePaperPage = () => {
     const loadDraftData = async () => {
         try {
             const token = localStorage.getItem('token');
-            const res = await axios.get('http://localhost:5000/api/drafts/latest', {
+            const res = await axios.get(`${API_URL}/api/drafts/latest`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
 
@@ -197,7 +190,7 @@ const CreatePaperPage = () => {
     const deleteDraft = async () => {
         try {
             const token = localStorage.getItem('token');
-            await axios.delete('http://localhost:5000/api/drafts/clear/current', {
+            await axios.delete(`${API_URL}/api/drafts/clear/current`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setShowDraftPrompt(false);
@@ -503,7 +496,7 @@ const CreatePaperPage = () => {
                                     </button>
                                     <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-2xl border-2 border-black opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
                                         <a
-                                            href={`http://localhost:5000/api/papers/${paperId}/export/pdf`}
+                                            href={`${API_URL}/api/papers/${paperId}/export/pdf`}
                                             className="block px-6 py-3 text-sm font-semibold text-black hover:bg-dark hover:text-cream rounded-t-xl transition-all"
                                             target="_blank"
                                             rel="noopener noreferrer"
@@ -511,7 +504,7 @@ const CreatePaperPage = () => {
                                             📄 Export as PDF
                                         </a>
                                         <a
-                                            href={`http://localhost:5000/api/papers/${paperId}/export/docx`}
+                                            href={`${API_URL}/api/papers/${paperId}/export/docx`}
                                             className="block px-6 py-3 text-sm font-semibold text-black hover:bg-dark hover:text-cream transition-all"
                                             target="_blank"
                                             rel="noopener noreferrer"
@@ -519,7 +512,7 @@ const CreatePaperPage = () => {
                                             📝 Export as DOCX
                                         </a>
                                         <a
-                                            href={`http://localhost:5000/api/papers/${paperId}/export/html`}
+                                            href={`${API_URL}/api/papers/${paperId}/export/html`}
                                             className="block px-6 py-3 text-sm font-semibold text-black hover:bg-dark hover:text-cream rounded-b-xl transition-all"
                                             target="_blank"
                                             rel="noopener noreferrer"
