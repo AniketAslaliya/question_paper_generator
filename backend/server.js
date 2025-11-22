@@ -1,0 +1,26 @@
+require('dotenv').config();
+const express = require('express');
+const mongoose = require('mongoose');
+const cors = require('cors');
+const logger = require('./middleware/logger');
+
+const app = express();
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+app.use(logger); // Attach logger helper to all requests
+
+// Routes
+app.use('/api/auth', require('./routes/authRoutes'));
+app.use('/api/papers', require('./routes/paperRoutes'));
+app.use('/api/admin', require('./routes/adminRoutes'));
+app.use('/api/drafts', require('./routes/draftRoutes'));
+
+// DB Connection
+mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/qpg_db')
+    .then(() => console.log('MongoDB Connected'))
+    .catch(err => console.error('MongoDB Connection Error:', err));
+
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
