@@ -11,6 +11,9 @@ app.use(cors());
 app.use(express.json());
 app.use(logger); // Attach logger helper to all requests
 
+// Health Check
+app.get('/healthz', (req, res) => res.status(200).send('OK'));
+
 // Routes
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/papers', require('./routes/paperRoutes'));
