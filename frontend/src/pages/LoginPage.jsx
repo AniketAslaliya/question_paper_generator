@@ -108,7 +108,7 @@ const LoginPage = () => {
                                 onClick={async () => {
                                     try {
                                         await loginWithGoogle();
-                                        navigate('/dashboard');
+                                        // Redirect will handle navigation
                                     } catch (err) {
                                         setError(err.message);
                                     }

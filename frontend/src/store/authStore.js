@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, signInWithRedirect, GoogleAuthProvider } from 'firebase/auth';
 import { auth } from '../config/firebase';
 import api from '../api/axiosConfig';
 
@@ -68,8 +68,9 @@ const useAuthStore = create((set) => ({
         set({ isLoading: true, error: null });
         try {
             const provider = new GoogleAuthProvider();
-            await signInWithPopup(auth, provider);
-            return true;
+            await signInWithRedirect(auth, provider);
+            // The page will redirect, so we don't return here
+            // onAuthStateChanged will handle the user after redirect
         } catch (err) {
             set({ error: err.message, isLoading: false });
             throw err;
