@@ -1,84 +1,82 @@
 import { create } from 'zustand';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
+import { auth } from '../config/firebase';
 import api from '../api/axiosConfig';
 
 const useAuthStore = create((set) => ({
     user: null,
     token: localStorage.getItem('token') || null,
     isAuthenticated: false,
-    isLoading: false,
+    isLoading: true, // Start loading to check auth state
     error: null,
 
-    login: async (email, password, rememberMe = false) => {
+    // Initialize Auth Listener
+    initAuth: () => {
+        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+            if (firebaseUser) {
+                try {
+                    const token = await firebaseUser.getIdToken();
+                    localStorage.setItem('token', token);
+
+                    // Sync with backend to get role/db user data
+                    const res = await api.post('/api/auth/firebase-login', {}, {
+                        headers: { Authorization: `Bearer ${token}` }
+                    });
+
+                    set({ user: res.data, token, isAuthenticated: true, isLoading: false });
+                } catch (err) {
+                    console.error("Backend sync failed", err);
+                    set({ user: null, token: null, isAuthenticated: false, isLoading: false });
+                }
+            } else {
+                localStorage.removeItem('token');
+                set({ user: null, token: null, isAuthenticated: false, isLoading: false });
+            }
+        });
+        return unsubscribe;
+    },
+
+    login: async (email, password) => {
         set({ isLoading: true, error: null });
         try {
-            const res = await api.post('/api/auth/login', { email, password, rememberMe });
-            const { token, user } = res.data;
-
-            // Store token and expiry
-            localStorage.setItem('token', token);
-            const expiryDays = rememberMe ? 30 : 1;
-            const expiryTime = Date.now() + (expiryDays * 24 * 60 * 60 * 1000);
-            localStorage.setItem('tokenExpiry', expiryTime.toString());
-
-            set({ user, token, isAuthenticated: true, isLoading: false, error: null });
+            await signInWithEmailAndPassword(auth, email, password);
+            // onAuthStateChanged will handle the rest
             return true;
         } catch (err) {
-            const errorMsg = err.response?.data?.message || 'Login failed';
-            set({ error: errorMsg, isLoading: false, isAuthenticated: false });
-            throw new Error(errorMsg);
+            set({ error: err.message, isLoading: false });
+            throw err;
         }
     },
 
     register: async (name, email, password) => {
         set({ isLoading: true, error: null });
         try {
-            const res = await api.post('/api/auth/register', { name, email, password });
-            const { token, user } = res.data;
+            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+            const token = await userCredential.user.getIdToken();
 
-            localStorage.setItem('token', token);
-            const expiryTime = Date.now() + (24 * 60 * 60 * 1000); // 1 day default
-            localStorage.setItem('tokenExpiry', expiryTime.toString());
-
-            set({ user, token, isAuthenticated: true, isLoading: false, error: null });
-            return true;
-        } catch (err) {
-            const errorMsg = err.response?.data?.message || 'Registration failed';
-            set({ error: errorMsg, isLoading: false, isAuthenticated: false });
-            throw new Error(errorMsg);
-        }
-    },
-
-    logout: () => {
-        localStorage.removeItem('token');
-        localStorage.removeItem('tokenExpiry');
-        set({ user: null, token: null, isAuthenticated: false });
-    },
-
-    loadUser: async () => {
-        const token = localStorage.getItem('token');
-        const tokenExpiry = localStorage.getItem('tokenExpiry');
-
-        if (!token) return;
-
-        // Check if token has expired
-        if (tokenExpiry && Date.now() > parseInt(tokenExpiry)) {
-            localStorage.removeItem('token');
-            localStorage.removeItem('tokenExpiry');
-            set({ user: null, token: null, isAuthenticated: false });
-            return;
-        }
-
-        try {
-            const res = await api.get('/api/auth/me', {
+            // Register in backend
+            await api.post('/api/auth/firebase-register', { name, email }, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            set({ user: res.data, token, isAuthenticated: true });
+
+            return true;
         } catch (err) {
-            localStorage.removeItem('token');
-            localStorage.removeItem('tokenExpiry');
-            set({ user: null, token: null, isAuthenticated: false });
+            set({ error: err.message, isLoading: false });
+            throw err;
         }
-    }
+    },
+
+    logout: async () => {
+        try {
+            await signOut(auth);
+            localStorage.removeItem('token');
+            set({ user: null, token: null, isAuthenticated: false });
+        } catch (err) {
+            console.error(err);
+        }
+    },
+
+    loadUser: () => { } // Deprecated, handled by initAuth
 }));
 
 export default useAuthStore;
