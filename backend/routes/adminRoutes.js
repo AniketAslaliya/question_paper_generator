@@ -55,11 +55,19 @@ router.get('/papers', auth, adminAuth, async (req, res) => {
             .populate('userId', 'name email role')
             .sort({ createdAt: -1 });
 
-        // Add userRole to each paper
-        const papersWithRole = papers.map(paper => ({
-            ...paper.toObject(),
-            userRole: paper.userId?.role || null
-        }));
+        // Transform papers to include userRole and extract sections from latest version
+        const papersWithRole = papers.map(paper => {
+            const paperObj = paper.toObject();
+            const latestVersion = paperObj.versions && paperObj.versions.length > 0
+                ? paperObj.versions[paperObj.versions.length - 1]
+                : null;
+
+            return {
+                ...paperObj,
+                userRole: paper.userId?.role || null,
+                sections: latestVersion?.generatedContentJSON?.sections || []
+            };
+        });
 
         res.json(papersWithRole);
     } catch (err) {
