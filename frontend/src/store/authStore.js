@@ -58,25 +58,40 @@ const useAuthStore = create((set) => ({
         const token = localStorage.getItem('token');
         const tokenExpiry = localStorage.getItem('tokenExpiry');
 
-        if (!token) return;
+        if (!token) {
+            set({ isLoading: false });
+            return;
+        }
 
         // Check if token has expired
         if (tokenExpiry && Date.now() > parseInt(tokenExpiry)) {
+            console.log('Token expired, logging out');
             localStorage.removeItem('token');
             localStorage.removeItem('tokenExpiry');
-            set({ user: null, token: null, isAuthenticated: false });
+            set({ user: null, token: null, isAuthenticated: false, isLoading: false });
             return;
         }
 
         try {
+            set({ isLoading: true });
             const res = await api.get('/api/auth/me', {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            set({ user: res.data, token, isAuthenticated: true });
+            console.log('✅ User loaded successfully:', res.data);
+            set({ user: res.data, token, isAuthenticated: true, isLoading: false });
         } catch (err) {
-            localStorage.removeItem('token');
-            localStorage.removeItem('tokenExpiry');
-            set({ user: null, token: null, isAuthenticated: false });
+            console.error('❌ Failed to load user:', err.response?.data || err.message);
+            // Only logout if it's a 401 (unauthorized) error
+            if (err.response?.status === 401) {
+                console.log('Invalid token, logging out');
+                localStorage.removeItem('token');
+                localStorage.removeItem('tokenExpiry');
+                set({ user: null, token: null, isAuthenticated: false, isLoading: false });
+            } else {
+                // For other errors, keep the user logged in but stop loading
+                console.log('Keeping user logged in despite error');
+                set({ isLoading: false });
+            }
         }
     }
 }));

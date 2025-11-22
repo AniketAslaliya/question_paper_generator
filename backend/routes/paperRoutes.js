@@ -158,9 +158,15 @@ router.post('/create-phase2', auth, async (req, res) => {
 router.post('/create-phase3', auth, async (req, res) => {
     const { paperId } = req.body;
     try {
-        const paper = await Paper.findById(paperId);
-        if (!paper) return res.status(404).json({ message: 'Paper not found' });
+        console.log('📝 Generating paper for user:', req.user.id, 'Paper ID:', paperId);
 
+        const paper = await Paper.findById(paperId);
+        if (!paper) {
+            console.log('❌ Paper not found:', paperId);
+            return res.status(404).json({ message: 'Paper not found' });
+        }
+
+        console.log('✅ Paper found, starting generation...');
         const generatedData = await generatePaper({
             extractedText: paper.extractedData.textChunks[0],
             templateConfig: paper.config,
@@ -178,6 +184,7 @@ router.post('/create-phase3', auth, async (req, res) => {
             cifData: paper.config.cifData || null
         });
 
+        console.log('✅ Paper generated successfully');
         paper.versions.push({
             versionNumber: paper.versions.length + 1,
             generatedContentHTML: generatedData.html,
@@ -192,8 +199,13 @@ router.post('/create-phase3', auth, async (req, res) => {
 
         res.json({ paper, generatedData });
     } catch (err) {
-        console.error(err);
-        res.status(500).send('Server Error');
+        console.error('❌ Paper generation error:', err.message);
+        console.error('Full error:', err);
+        res.status(500).json({
+            message: 'Server Error',
+            error: err.message,
+            details: process.env.NODE_ENV === 'development' ? err.stack : undefined
+        });
     }
 });
 
