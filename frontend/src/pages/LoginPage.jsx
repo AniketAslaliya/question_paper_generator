@@ -188,13 +188,7 @@ const LoginPage = () => {
                             </button>
                         </div>
 
-                        {isLogin && (
-                            <div className="mt-6 p-4 bg-gray-50 rounded-xl border-2 border-gray-200">
-                                <p className="text-sm text-gray-700 text-center font-medium">
-                                    <strong className="text-black">Demo Admin:</strong> admin@qpg.com / admin123
-                                </p>
-                            </div>
-                        )}
+
                     </div>
 
                     {/* Trust Indicators */}

@@ -48,6 +48,17 @@ router.get('/users', auth, adminAuth, async (req, res) => {
     }
 });
 
+// Get All Papers
+router.get('/papers', auth, adminAuth, async (req, res) => {
+    try {
+        const papers = await Paper.find().sort({ createdAt: -1 });
+        res.json(papers);
+    } catch (err) {
+        console.error(err);
+        res.status(500).send('Server Error');
+    }
+});
+
 // Get Logs
 router.get('/logs', auth, adminAuth, async (req, res) => {
     try {

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import axios from 'axios';
+import api, { API_URL } from '../api/axiosConfig';
 import Navbar from '../components/Navbar';
 import { ArrowLeft, Download, Printer } from 'lucide-react';
 import ReactQuill from 'react-quill';
@@ -15,7 +15,7 @@ const PaperViewPage = () => {
         const fetchPaper = async () => {
             try {
                 const token = localStorage.getItem('token');
-                const res = await axios.get(`http://localhost:5000/api/papers/${id}`, {
+                const res = await api.get(`/api/papers/${id}`, {
                     headers: { Authorization: `Bearer ${token}` }
                 });
                 setPaper(res.data);
@@ -37,8 +37,8 @@ const PaperViewPage = () => {
     const handleDownload = (type) => {
         const token = localStorage.getItem('token');
         const url = type === 'answerKey'
-            ? `http://localhost:5000/api/papers/${id}/export/answer-key`
-            : `http://localhost:5000/api/papers/${id}/export/pdf`;
+            ? `${API_URL}/api/papers/${id}/export/answer-key`
+            : `${API_URL}/api/papers/${id}/export/pdf`;
 
         // Trigger download
         window.open(url, '_blank');
@@ -86,8 +86,8 @@ const PaperViewPage = () => {
                 <div className="flex border-b border-gray-200 mb-6">
                     <button
                         className={`py-4 px-6 font-medium text-sm focus:outline-none ${activeTab === 'questionPaper'
-                                ? 'text-blue-600 border-b-2 border-blue-600'
-                                : 'text-gray-500 hover:text-gray-700'
+                            ? 'text-blue-600 border-b-2 border-blue-600'
+                            : 'text-gray-500 hover:text-gray-700'
                             }`}
                         onClick={() => setActiveTab('questionPaper')}
                     >
@@ -96,8 +96,8 @@ const PaperViewPage = () => {
                     {latestVersion?.generatedAnswerKeyHTML && (
                         <button
                             className={`py-4 px-6 font-medium text-sm focus:outline-none ${activeTab === 'answerKey'
-                                    ? 'text-green-600 border-b-2 border-green-600'
-                                    : 'text-gray-500 hover:text-gray-700'
+                                ? 'text-green-600 border-b-2 border-green-600'
+                                : 'text-gray-500 hover:text-gray-700'
                                 }`}
                             onClick={() => setActiveTab('answerKey')}
                         >

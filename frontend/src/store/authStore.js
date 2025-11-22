@@ -1,7 +1,5 @@
 import { create } from 'zustand';
-import axios from 'axios';
-
-const API_URL = 'http://localhost:5000/api/auth';
+import api from '../api/axiosConfig';
 
 const useAuthStore = create((set) => ({
     user: null,
@@ -13,7 +11,7 @@ const useAuthStore = create((set) => ({
     login: async (email, password, rememberMe = false) => {
         set({ isLoading: true, error: null });
         try {
-            const res = await axios.post(`${API_URL}/login`, { email, password, rememberMe });
+            const res = await api.post('/api/auth/login', { email, password, rememberMe });
             const { token, user } = res.data;
 
             // Store token and expiry
@@ -34,7 +32,7 @@ const useAuthStore = create((set) => ({
     register: async (name, email, password) => {
         set({ isLoading: true, error: null });
         try {
-            const res = await axios.post(`${API_URL}/register`, { name, email, password });
+            const res = await api.post('/api/auth/register', { name, email, password });
             const { token, user } = res.data;
 
             localStorage.setItem('token', token);
@@ -71,7 +69,7 @@ const useAuthStore = create((set) => ({
         }
 
         try {
-            const res = await axios.get(`${API_URL}/me`, {
+            const res = await api.get('/api/auth/me', {
                 headers: { Authorization: `Bearer ${token}` }
             });
             set({ user: res.data, token, isAuthenticated: true });

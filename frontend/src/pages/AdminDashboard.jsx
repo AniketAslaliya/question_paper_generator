@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import axios from 'axios';
+import api from '../api/axiosConfig';
 import Navbar from '../components/Navbar';
 import { Users, FileText, Activity, BarChart2 } from 'lucide-react';
 
 const AdminDashboard = () => {
     const [stats, setStats] = useState(null);
     const [users, setUsers] = useState([]);
+    const [papers, setPapers] = useState([]);
     const [logs, setLogs] = useState([]);
     const [activeTab, setActiveTab] = useState('overview');
 
@@ -15,15 +16,17 @@ const AdminDashboard = () => {
                 const token = localStorage.getItem('token');
                 const headers = { Authorization: `Bearer ${token}` };
 
-                const [statsRes, usersRes, logsRes] = await Promise.all([
-                    axios.get('http://localhost:5000/api/admin/stats', { headers }),
-                    axios.get('http://localhost:5000/api/admin/users', { headers }),
-                    axios.get('http://localhost:5000/api/admin/logs', { headers })
+                const [statsRes, usersRes, logsRes, papersRes] = await Promise.all([
+                    api.get('/api/admin/stats', { headers }),
+                    api.get('/api/admin/users', { headers }),
+                    api.get('/api/admin/logs', { headers }),
+                    api.get('/api/admin/papers', { headers })
                 ]);
 
                 setStats(statsRes.data);
                 setUsers(usersRes.data);
                 setLogs(logsRes.data);
+                setPapers(papersRes.data);
             } catch (err) {
                 console.error(err);
             }
@@ -102,6 +105,12 @@ const AdminDashboard = () => {
                         >
                             Users List
                         </button>
+                        <button
+                            onClick={() => setActiveTab('papers')}
+                            className={`${activeTab === 'papers' ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                        >
+                            Papers List
+                        </button>
                     </nav>
                 </div>
 
@@ -126,7 +135,7 @@ const AdminDashboard = () => {
                                 ))}
                             </tbody>
                         </table>
-                    ) : (
+                    ) : activeTab === 'users' ? (
                         <table className="min-w-full divide-y divide-slate-200">
                             <thead className="bg-slate-50">
                                 <tr>
@@ -147,6 +156,27 @@ const AdminDashboard = () => {
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{new Date(user.createdAt).toLocaleDateString()}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    ) : (
+                        <table className="min-w-full divide-y divide-slate-200">
+                            <thead className="bg-slate-50">
+                                <tr>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Paper Name</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Subject</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Created By</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Date</th>
+                                </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-slate-200">
+                                {papers.map((paper) => (
+                                    <tr key={paper._id}>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">{paper.paperName}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{paper.subject || 'N/A'}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{paper.userName || 'Unknown'}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{new Date(paper.createdAt).toLocaleDateString()}</td>
                                     </tr>
                                 ))}
                             </tbody>

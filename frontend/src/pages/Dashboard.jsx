@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../api/axiosConfig';
 import Navbar from '../components/Navbar';
 import { Plus, FileText, Calendar, Sparkles, TrendingUp } from 'lucide-react';
 import useAuthStore from '../store/authStore';
@@ -18,7 +18,7 @@ const Dashboard = () => {
     const fetchPapers = async () => {
         try {
             const token = localStorage.getItem('token');
-            const res = await axios.get('http://localhost:5000/api/papers/my', {
+            const res = await api.get('/api/papers/my', {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setPapers(res.data);

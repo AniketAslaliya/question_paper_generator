@@ -211,8 +211,8 @@ npm run dev
 ```
 
 ### Admin Credentials
-- **Email**: admin@qpg.com
-- **Password**: admin123
+- **Email**: (Configured during setup)
+- **Password**: (Configured during setup)
 
 ---
 
