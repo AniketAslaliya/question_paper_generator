@@ -1,20 +1,13 @@
-```javascript
 const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema({
-    name: { type: String, required: true },
-    email: { type: String, required: true, unique: true },
-    passwordHash: { type: String, required: true },
-    role: { 
-        type: String, 
-        enum: ['admin', 'teacher'], 
-        default: 'teacher' 
-    },
-    provider: { type: String, default: 'email' },
-    firebaseUid: { type: String },
-    lastLogin: { type: Date },
-    createdAt: { type: Date, default: Date.now }
+  name: { type: String, required: true },
+  email: { type: String, required: true, unique: true },
+  passwordHash: { type: String },
+  provider: { type: String, enum: ['email', 'google'], default: 'email' },
+  role: { type: String, enum: ['admin', 'teacher'], default: 'teacher' },
+  lastLogin: { type: Date },
+  lastActivityTimestamp: { type: Date }
 }, { timestamps: true });
 
 module.exports = mongoose.model('User', userSchema);
-```
