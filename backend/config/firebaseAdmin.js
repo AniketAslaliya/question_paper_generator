@@ -1,4 +1,3 @@
-```javascript
 const admin = require('firebase-admin');
 require('dotenv').config();
 
@@ -25,4 +24,3 @@ if (serviceAccount) {
 }
 
 module.exports = admin;
-```
