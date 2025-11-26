@@ -10,6 +10,8 @@ const AdminDashboard = () => {
     const [logs, setLogs] = useState([]);
     const [activeTab, setActiveTab] = useState('overview');
     const [selectedPaper, setSelectedPaper] = useState(null);
+    const [importantQuestions, setImportantQuestions] = useState([]);
+    const [importantQuestionsStats, setImportantQuestionsStats] = useState(null);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -111,6 +113,12 @@ const AdminDashboard = () => {
                             className={`${activeTab === 'papers' ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
                         >
                             Papers List
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('important-questions')}
+                            className={`${activeTab === 'important-questions' ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                        >
+                            Important Questions
                         </button>
                     </nav>
                 </div>
@@ -221,6 +229,82 @@ const AdminDashboard = () => {
                                 })}
                             </tbody>
                         </table>
+                    ) : activeTab === 'important-questions' ? (
+                        <div className="p-6">
+                            {importantQuestionsStats && (
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                                    <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                                        <div className="text-sm text-blue-600 font-medium">Total Questions</div>
+                                        <div className="text-2xl font-bold text-blue-900">{importantQuestionsStats.totalQuestions}</div>
+                                    </div>
+                                    <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
+                                        <div className="text-sm text-purple-600 font-medium">Reference</div>
+                                        <div className="text-2xl font-bold text-purple-900">{importantQuestionsStats.byType?.Reference || 0}</div>
+                                    </div>
+                                    <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                                        <div className="text-sm text-green-600 font-medium">Important</div>
+                                        <div className="text-2xl font-bold text-green-900">{importantQuestionsStats.byType?.Important || 0}</div>
+                                    </div>
+                                    <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
+                                        <div className="text-sm text-orange-600 font-medium">Numerical</div>
+                                        <div className="text-2xl font-bold text-orange-900">{importantQuestionsStats.byType?.Numerical || 0}</div>
+                                    </div>
+                                </div>
+                            )}
+                            <table className="min-w-full divide-y divide-slate-200">
+                                <thead className="bg-slate-50">
+                                    <tr>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Question</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Type</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Paper</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Added By</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Date</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-slate-200">
+                                    {importantQuestions.length > 0 ? (
+                                        importantQuestions.map((q) => (
+                                            <tr key={q._id}>
+                                                <td className="px-6 py-4 text-sm text-slate-900 max-w-md">
+                                                    <div className="font-medium">{q.question}</div>
+                                                    {q.notes && (
+                                                        <div className="text-xs text-slate-500 mt-1 italic">{q.notes}</div>
+                                                    )}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                                                        q.questionType === 'Reference' ? 'bg-purple-100 text-purple-800' :
+                                                        q.questionType === 'Important' ? 'bg-green-100 text-green-800' :
+                                                        q.questionType === 'Numerical' ? 'bg-orange-100 text-orange-800' :
+                                                        'bg-blue-100 text-blue-800'
+                                                    }`}>
+                                                        {q.questionType}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
+                                                    <div className="font-medium">{q.paper?.name || 'N/A'}</div>
+                                                    <div className="text-xs text-slate-400">{q.paper?.subject || ''}</div>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
+                                                    <div>{q.addedBy?.name || q.paper?.createdBy?.name || 'Unknown'}</div>
+                                                    <div className="text-xs text-slate-400">{q.addedBy?.email || q.paper?.createdBy?.email || ''}</div>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
+                                                    {new Date(q.addedAt).toLocaleDateString()}
+                                                </td>
+                                            </tr>
+                                        ))
+                                    ) : (
+                                        <tr>
+                                            <td colSpan="5" className="px-6 py-8 text-center text-slate-500">
+                                                <BookOpen className="w-12 h-12 mx-auto mb-2 text-slate-300" />
+                                                <p>No important questions added yet</p>
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
                     )}
                 </div>
 

@@ -246,12 +246,23 @@ router.post('/create-phase3', auth, async (req, res) => {
             return res.status(400).json({ message: 'No text content found. Please upload files first.' });
         }
         
+        // Update generation status - START
+        paper.generationStatus = {
+            status: 'generating',
+            progress: 10,
+            startedAt: new Date()
+        };
+        await paper.save();
+
         // Combine all text chunks for better context
         const extractedText = paper.extractedData.textChunks 
             ? paper.extractedData.textChunks.join('\n\n---\n\n')
             : (paper.extractedData.fullText || '');
 
         if (!extractedText || extractedText.trim().length < 100) {
+            paper.generationStatus.status = 'failed';
+            paper.generationStatus.error = 'Insufficient content extracted from files';
+            await paper.save();
             return res.status(400).json({ 
                 message: 'Insufficient content extracted from files. Please upload files with readable text content.' 
             });
@@ -263,6 +274,17 @@ router.post('/create-phase3', auth, async (req, res) => {
             sections: paper.config.sections?.length || 0,
             totalMarks: paper.config.marks
         });
+
+        // Auto-save progress: Update status to 30%
+        paper.generationStatus.progress = 30;
+        await paper.save();
+
+        // Include important questions from paper.importantQuestions
+        const importantQuestionsList = paper.importantQuestions?.map(iq => iq.question) || [];
+        const allReferenceQuestions = [
+            ...(paper.config.referenceQuestions || []),
+            ...importantQuestionsList
+        ];
 
         const generatedData = await generatePaper({
             extractedText: extractedText,
@@ -276,11 +298,15 @@ router.post('/create-phase3', auth, async (req, res) => {
             generateAnswerKey: paper.config.generateAnswerKey || false,
             setsRequired: paper.config.setsGenerated,
             previousVersions: [],
-            referenceQuestions: paper.config.referenceQuestions || [],
+            referenceQuestions: allReferenceQuestions,
             importantTopics: paper.config.importantTopics || '',
             cifData: paper.config.cifData || null,
             duration: paper.config.duration || '3 Hours'
         });
+
+        // Auto-save progress: Update status to 80%
+        paper.generationStatus.progress = 80;
+        await paper.save();
 
         console.log('✅ Paper generated successfully');
         paper.versions.push({
@@ -291,6 +317,14 @@ router.post('/create-phase3', auth, async (req, res) => {
             aiModel: 'Gemini Flash 2.5'
         });
 
+        // Update generation status - COMPLETE
+        paper.generationStatus = {
+            status: 'completed',
+            progress: 100,
+            startedAt: paper.generationStatus.startedAt,
+            completedAt: new Date()
+        };
+
         await paper.save();
 
         if (req.logActivity) await req.logActivity('paper_generated', { paperId: paper.id });
@@ -299,6 +333,24 @@ router.post('/create-phase3', auth, async (req, res) => {
     } catch (err) {
         console.error('❌ Paper generation error:', err.message);
         console.error('Full error:', err);
+        
+        // Update generation status - FAILED
+        try {
+            const paper = await Paper.findById(paperId);
+            if (paper) {
+                paper.generationStatus = {
+                    status: 'failed',
+                    progress: 0,
+                    startedAt: paper.generationStatus?.startedAt,
+                    completedAt: new Date(),
+                    error: err.message
+                };
+                await paper.save();
+            }
+        } catch (saveErr) {
+            console.error('Failed to save error status:', saveErr);
+        }
+
         res.status(500).json({
             message: 'Server Error',
             error: err.message,
@@ -382,6 +434,96 @@ router.get('/my', auth, async (req, res) => {
     } catch (err) {
         console.error(err);
         res.status(500).send('Server Error');
+    }
+});
+
+// Add Important Question
+router.post('/:id/important-questions', auth, async (req, res) => {
+    try {
+        const { question, questionType, notes } = req.body;
+        
+        if (!question || !question.trim()) {
+            return res.status(400).json({ message: 'Question is required' });
+        }
+
+        const paper = await Paper.findById(req.params.id);
+        if (!paper) return res.status(404).json({ message: 'Paper not found' });
+        if (paper.userId.toString() !== req.user.id) return res.status(401).json({ message: 'Unauthorized' });
+
+        paper.importantQuestions = paper.importantQuestions || [];
+        paper.importantQuestions.push({
+            question: question.trim(),
+            questionType: questionType || 'Important',
+            addedBy: req.user.id,
+            notes: notes || ''
+        });
+
+        await paper.save();
+
+        if (req.logActivity) {
+            await req.logActivity('important_question_added', { 
+                paperId: paper.id,
+                questionType: questionType || 'Important'
+            });
+        }
+
+        res.json({ message: 'Important question added', paper });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server Error', error: err.message });
+    }
+});
+
+// Get Important Questions for a Paper
+router.get('/:id/important-questions', auth, async (req, res) => {
+    try {
+        const paper = await Paper.findById(req.params.id).populate('importantQuestions.addedBy', 'name email');
+        if (!paper) return res.status(404).json({ message: 'Paper not found' });
+        if (paper.userId.toString() !== req.user.id && req.user.role !== 'admin') {
+            return res.status(401).json({ message: 'Unauthorized' });
+        }
+
+        res.json({ importantQuestions: paper.importantQuestions || [] });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server Error', error: err.message });
+    }
+});
+
+// Delete Important Question
+router.delete('/:id/important-questions/:questionId', auth, async (req, res) => {
+    try {
+        const paper = await Paper.findById(req.params.id);
+        if (!paper) return res.status(404).json({ message: 'Paper not found' });
+        if (paper.userId.toString() !== req.user.id) return res.status(401).json({ message: 'Unauthorized' });
+
+        paper.importantQuestions = (paper.importantQuestions || []).filter(
+            q => q._id.toString() !== req.params.questionId
+        );
+
+        await paper.save();
+        res.json({ message: 'Question removed', paper });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server Error', error: err.message });
+    }
+});
+
+// Get Generation Status
+router.get('/:id/generation-status', auth, async (req, res) => {
+    try {
+        const paper = await Paper.findById(req.params.id);
+        if (!paper) return res.status(404).json({ message: 'Paper not found' });
+        if (paper.userId.toString() !== req.user.id && req.user.role !== 'admin') {
+            return res.status(401).json({ message: 'Unauthorized' });
+        }
+
+        res.json({ 
+            generationStatus: paper.generationStatus || { status: 'pending', progress: 0 }
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server Error', error: err.message });
     }
 });
 

@@ -76,6 +76,7 @@ router.get('/papers', auth, adminAuth, async (req, res) => {
         const total = await Paper.countDocuments();
         const papers = await Paper.find()
             .populate('userId', 'name email role')
+            .populate('importantQuestions.addedBy', 'name email')
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(limit);
@@ -90,7 +91,8 @@ router.get('/papers', auth, adminAuth, async (req, res) => {
             return {
                 ...paperObj,
                 userRole: paper.userId?.role || null,
-                sections: latestVersion?.generatedContentJSON?.sections || []
+                sections: latestVersion?.generatedContentJSON?.sections || [],
+                importantQuestionsCount: (paper.importantQuestions || []).length
             };
         });
 
@@ -106,6 +108,78 @@ router.get('/papers', auth, adminAuth, async (req, res) => {
     } catch (err) {
         console.error(err);
         res.status(500).send('Server Error');
+    }
+});
+
+// Get All Important Questions (Admin View)
+router.get('/important-questions', auth, adminAuth, async (req, res) => {
+    try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 50;
+        const skip = (page - 1) * limit;
+
+        // Get all papers with important questions
+        const papers = await Paper.find({
+            importantQuestions: { $exists: true, $ne: [] }
+        })
+        .populate('userId', 'name email role')
+        .populate('importantQuestions.addedBy', 'name email')
+        .select('paperName subject userId importantQuestions createdAt')
+        .sort({ createdAt: -1 });
+
+        // Flatten important questions with paper info
+        let allQuestions = [];
+        papers.forEach(paper => {
+            (paper.importantQuestions || []).forEach(iq => {
+                allQuestions.push({
+                    _id: iq._id,
+                    question: iq.question,
+                    questionType: iq.questionType,
+                    notes: iq.notes,
+                    addedAt: iq.addedAt,
+                    addedBy: iq.addedBy,
+                    paper: {
+                        id: paper._id,
+                        name: paper.paperName,
+                        subject: paper.subject,
+                        createdBy: {
+                            name: paper.userId?.name,
+                            email: paper.userId?.email,
+                            role: paper.userId?.role
+                        }
+                    }
+                });
+            });
+        });
+
+        // Sort by date (newest first)
+        allQuestions.sort((a, b) => new Date(b.addedAt) - new Date(a.addedAt));
+
+        const total = allQuestions.length;
+        const paginatedQuestions = allQuestions.slice(skip, skip + limit);
+
+        res.json({
+            questions: paginatedQuestions,
+            pagination: {
+                page,
+                limit,
+                total,
+                pages: Math.ceil(total / limit)
+            },
+            stats: {
+                totalQuestions: total,
+                totalPapers: papers.length,
+                byType: {
+                    Reference: allQuestions.filter(q => q.questionType === 'Reference').length,
+                    Important: allQuestions.filter(q => q.questionType === 'Important').length,
+                    Numerical: allQuestions.filter(q => q.questionType === 'Numerical').length,
+                    Specific: allQuestions.filter(q => q.questionType === 'Specific').length
+                }
+            }
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server Error', error: err.message });
     }
 });
 

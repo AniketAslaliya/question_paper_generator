@@ -38,6 +38,20 @@ const paperSchema = new mongoose.Schema({
         generatedContentJSON: Object,
         createdAt: { type: Date, default: Date.now },
         aiModel: { type: String, default: "Gemini Flash 2.5" }
+    }],
+    generationStatus: {
+        status: { type: String, enum: ['pending', 'generating', 'completed', 'failed'], default: 'pending' },
+        progress: { type: Number, default: 0 },
+        startedAt: Date,
+        completedAt: Date,
+        error: String
+    },
+    importantQuestions: [{
+        question: { type: String, required: true },
+        questionType: { type: String, enum: ['Reference', 'Important', 'Numerical', 'Specific'] },
+        addedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        addedAt: { type: Date, default: Date.now },
+        notes: String
     }]
 }, { timestamps: true });
 
