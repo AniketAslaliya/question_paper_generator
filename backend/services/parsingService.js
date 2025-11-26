@@ -2,13 +2,20 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 const pdfParse = require('pdf-parse');
 const mammoth = require('mammoth');
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const genAI = process.env.GEMINI_API_KEY 
+    ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
+    : null;
 
 /**
  * Enhanced CIF Parsing using AI for better accuracy
  */
 const parseCIF = async (text) => {
     try {
+        if (!genAI) {
+            console.log('⚠️ GEMINI_API_KEY not set, using regex fallback for CIF parsing');
+            return parseCIFRegex(text);
+        }
+
         const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
         const prompt = `You are an expert at parsing Course Information Files (CIF). Extract the following information from the provided text:

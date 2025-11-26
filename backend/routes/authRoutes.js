@@ -83,6 +83,11 @@ router.post('/login', async (req, res) => {
         user.lastLogin = Date.now();
         await user.save();
 
+        if (!process.env.JWT_SECRET) {
+            console.error('❌ JWT_SECRET is not set!');
+            return res.status(500).json({ message: 'Server configuration error' });
+        }
+
         const payload = { id: user.id, role: user.role, name: user.name };
         const expiresIn = rememberMe ? '30d' : '1d';
         const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn });

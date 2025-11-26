@@ -5,14 +5,19 @@ services:
     rootDirectory: backend
     buildCommand: npm install
     startCommand: npm start
+    healthCheckPath: /healthz
     envVars:
       - key: NODE_VERSION
         value: 20.11.0
+      - key: NODE_ENV
+        value: production
       - key: MONGO_URI
         sync: false
       - key: JWT_SECRET
         sync: false
       - key: GEMINI_API_KEY
         sync: false
+      - key: FRONTEND_URL
+        value: https://question-paper-generator-sigma.vercel.app
       - key: PORT
         value: 10000

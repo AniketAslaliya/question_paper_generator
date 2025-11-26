@@ -1,6 +1,13 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+if (!process.env.GEMINI_API_KEY) {
+    console.error('❌ GEMINI_API_KEY is not set in environment variables!');
+    console.error('⚠️  Paper generation will fail without this key');
+}
+
+const genAI = process.env.GEMINI_API_KEY 
+    ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
+    : null;
 
 const generatePaper = async ({
   extractedText,
@@ -19,6 +26,10 @@ const generatePaper = async ({
   cifData = null,
   duration = '3 Hours'
 }) => {
+  if (!genAI) {
+    throw new Error('GEMINI_API_KEY is not configured. Please set it in environment variables.');
+  }
+
   const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
   const sectionsInfo = sections ? sections.map(s => {
