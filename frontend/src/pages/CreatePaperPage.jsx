@@ -112,23 +112,33 @@ const CreatePaperPage = () => {
     };
 
     const handleCustomTemplate = (templateData) => {
-        const totalMarks = parseInt(templateData.marks) || 100;
-        // Reset sections to match new marks - distribute evenly
-        const sectionCount = 2;
-        const marksPerSection = Math.floor(totalMarks / sectionCount);
-        const sections = [
-            { name: 'Section A', marks: marksPerSection, questionCount: 5, questionType: 'Theoretical' },
-            { name: 'Section B', marks: totalMarks - marksPerSection, questionCount: 4, questionType: 'Long Answer' }
-        ];
-        
-        setConfig({
-            ...config,
-            templateName: 'custom',
-            marks: totalMarks,
-            customTemplateName: templateData.name,
-            duration: templateData.duration,
-            sections: sections
-        });
+        try {
+            if (!templateData || !templateData.marks) {
+                console.error('Invalid template data:', templateData);
+                return;
+            }
+
+            const totalMarks = parseInt(templateData.marks) || 100;
+            // Reset sections to match new marks - distribute evenly
+            const sectionCount = 2;
+            const marksPerSection = Math.floor(totalMarks / sectionCount);
+            const sections = [
+                { name: 'Section A', marks: marksPerSection, questionCount: 5, questionType: 'Theoretical' },
+                { name: 'Section B', marks: totalMarks - marksPerSection, questionCount: 4, questionType: 'Long Answer' }
+            ];
+            
+            setConfig(prevConfig => ({
+                ...prevConfig,
+                templateName: 'custom',
+                marks: totalMarks,
+                customTemplateName: templateData.name || 'Custom Template',
+                duration: templateData.duration || '3 hours',
+                sections: sections
+            }));
+        } catch (error) {
+            console.error('Error in handleCustomTemplate:', error);
+            alert('Error creating custom template. Please try again.');
+        }
     };
 
     // Load draft on mount
@@ -517,30 +527,78 @@ const CreatePaperPage = () => {
                                         <Download className="w-5 h-5" /> Export
                                     </button>
                                     <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-2xl border-2 border-black opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
-                                        <a
-                                            href={`${API_URL}/api/papers/${paperId}/export/pdf`}
-                                            className="block px-6 py-3 text-sm font-semibold text-black hover:bg-dark hover:text-cream rounded-t-xl transition-all"
-                                            target="_blank"
-                                            rel="noopener noreferrer"
+                                        <button
+                                            onClick={async () => {
+                                                try {
+                                                    const token = localStorage.getItem('token');
+                                                    const response = await fetch(`${API_URL}/api/papers/${paperId}/export/pdf`, {
+                                                        headers: { Authorization: `Bearer ${token}` }
+                                                    });
+                                                    const blob = await response.blob();
+                                                    const url = window.URL.createObjectURL(blob);
+                                                    const a = document.createElement('a');
+                                                    a.href = url;
+                                                    a.download = `${paperId}.pdf`;
+                                                    document.body.appendChild(a);
+                                                    a.click();
+                                                    window.URL.revokeObjectURL(url);
+                                                    document.body.removeChild(a);
+                                                } catch (err) {
+                                                    alert('Failed to download PDF');
+                                                }
+                                            }}
+                                            className="block w-full px-6 py-3 text-sm font-semibold text-black hover:bg-dark hover:text-cream rounded-t-xl transition-all text-left"
                                         >
                                             📄 Export as PDF
-                                        </a>
-                                        <a
-                                            href={`${API_URL}/api/papers/${paperId}/export/docx`}
-                                            className="block px-6 py-3 text-sm font-semibold text-black hover:bg-dark hover:text-cream transition-all"
-                                            target="_blank"
-                                            rel="noopener noreferrer"
+                                        </button>
+                                        <button
+                                            onClick={async () => {
+                                                try {
+                                                    const token = localStorage.getItem('token');
+                                                    const response = await fetch(`${API_URL}/api/papers/${paperId}/export/docx`, {
+                                                        headers: { Authorization: `Bearer ${token}` }
+                                                    });
+                                                    const blob = await response.blob();
+                                                    const url = window.URL.createObjectURL(blob);
+                                                    const a = document.createElement('a');
+                                                    a.href = url;
+                                                    a.download = `${paperId}.docx`;
+                                                    document.body.appendChild(a);
+                                                    a.click();
+                                                    window.URL.revokeObjectURL(url);
+                                                    document.body.removeChild(a);
+                                                } catch (err) {
+                                                    alert('Failed to download DOCX');
+                                                }
+                                            }}
+                                            className="block w-full px-6 py-3 text-sm font-semibold text-black hover:bg-dark hover:text-cream transition-all text-left"
                                         >
                                             📝 Export as DOCX
-                                        </a>
-                                        <a
-                                            href={`${API_URL}/api/papers/${paperId}/export/html`}
-                                            className="block px-6 py-3 text-sm font-semibold text-black hover:bg-dark hover:text-cream rounded-b-xl transition-all"
-                                            target="_blank"
-                                            rel="noopener noreferrer"
+                                        </button>
+                                        <button
+                                            onClick={async () => {
+                                                try {
+                                                    const token = localStorage.getItem('token');
+                                                    const response = await fetch(`${API_URL}/api/papers/${paperId}/export/html`, {
+                                                        headers: { Authorization: `Bearer ${token}` }
+                                                    });
+                                                    const blob = await response.blob();
+                                                    const url = window.URL.createObjectURL(blob);
+                                                    const a = document.createElement('a');
+                                                    a.href = url;
+                                                    a.download = `${paperId}.html`;
+                                                    document.body.appendChild(a);
+                                                    a.click();
+                                                    window.URL.revokeObjectURL(url);
+                                                    document.body.removeChild(a);
+                                                } catch (err) {
+                                                    alert('Failed to download HTML');
+                                                }
+                                            }}
+                                            className="block w-full px-6 py-3 text-sm font-semibold text-black hover:bg-dark hover:text-cream rounded-b-xl transition-all text-left"
                                         >
                                             🌐 Export as HTML
-                                        </a>
+                                        </button>
                                     </div>
                                 </div>
                                 <button onClick={handleSave} className="btn-primary flex items-center gap-2">

@@ -23,11 +23,14 @@ const Dashboard = () => {
             });
             setPapers(res.data);
 
-            // Calculate stats
+            // Calculate stats (using UTC to avoid timezone issues)
             const now = new Date();
+            const currentYear = now.getUTCFullYear();
+            const currentMonth = now.getUTCMonth();
+            
             const thisMonth = res.data.filter(p => {
                 const created = new Date(p.createdAt);
-                return created.getMonth() === now.getMonth();
+                return created.getUTCFullYear() === currentYear && created.getUTCMonth() === currentMonth;
             }).length;
 
             const thisWeek = res.data.filter(p => {

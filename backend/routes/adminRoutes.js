@@ -40,8 +40,26 @@ router.get('/stats', auth, adminAuth, async (req, res) => {
 // Get Users
 router.get('/users', auth, adminAuth, async (req, res) => {
     try {
-        const users = await User.find().select('-passwordHash').sort({ createdAt: -1 });
-        res.json(users);
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 20;
+        const skip = (page - 1) * limit;
+
+        const total = await User.countDocuments();
+        const users = await User.find()
+            .select('-passwordHash')
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit);
+
+        res.json({
+            users,
+            pagination: {
+                page,
+                limit,
+                total,
+                pages: Math.ceil(total / limit)
+            }
+        });
     } catch (err) {
         console.error(err);
         res.status(500).send('Server Error');
@@ -51,9 +69,16 @@ router.get('/users', auth, adminAuth, async (req, res) => {
 // Get All Papers
 router.get('/papers', auth, adminAuth, async (req, res) => {
     try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 20;
+        const skip = (page - 1) * limit;
+
+        const total = await Paper.countDocuments();
         const papers = await Paper.find()
             .populate('userId', 'name email role')
-            .sort({ createdAt: -1 });
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit);
 
         // Transform papers to include userRole and extract sections from latest version
         const papersWithRole = papers.map(paper => {
@@ -69,7 +94,15 @@ router.get('/papers', auth, adminAuth, async (req, res) => {
             };
         });
 
-        res.json(papersWithRole);
+        res.json({
+            papers: papersWithRole,
+            pagination: {
+                page,
+                limit,
+                total,
+                pages: Math.ceil(total / limit)
+            }
+        });
     } catch (err) {
         console.error(err);
         res.status(500).send('Server Error');
@@ -79,8 +112,25 @@ router.get('/papers', auth, adminAuth, async (req, res) => {
 // Get Logs
 router.get('/logs', auth, adminAuth, async (req, res) => {
     try {
-        const logs = await ActivityLog.find().sort({ timestamp: -1 }).limit(100);
-        res.json(logs);
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 50;
+        const skip = (page - 1) * limit;
+
+        const total = await ActivityLog.countDocuments();
+        const logs = await ActivityLog.find()
+            .sort({ timestamp: -1 })
+            .skip(skip)
+            .limit(limit);
+
+        res.json({
+            logs,
+            pagination: {
+                page,
+                limit,
+                total,
+                pages: Math.ceil(total / limit)
+            }
+        });
     } catch (err) {
         console.error(err);
         res.status(500).send('Server Error');

@@ -8,6 +8,28 @@ const auth = require('../middleware/auth');
 // Register
 router.post('/register', async (req, res) => {
     const { name, email, password } = req.body;
+    
+    // Input validation
+    if (!name || !email || !password) {
+        return res.status(400).json({ message: 'All fields are required' });
+    }
+    
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+        return res.status(400).json({ message: 'Invalid email format' });
+    }
+    
+    // Password validation
+    if (password.length < 6) {
+        return res.status(400).json({ message: 'Password must be at least 6 characters long' });
+    }
+    
+    // Name validation
+    if (name.trim().length < 2) {
+        return res.status(400).json({ message: 'Name must be at least 2 characters long' });
+    }
+    
     try {
         let user = await User.findOne({ email });
         if (user) return res.status(400).json({ message: 'User already exists' });
@@ -31,6 +53,12 @@ router.post('/register', async (req, res) => {
 // Login
 router.post('/login', async (req, res) => {
     const { email, password, rememberMe } = req.body;
+    
+    // Input validation
+    if (!email || !password) {
+        return res.status(400).json({ message: 'Email and password are required' });
+    }
+    
     console.log('Login attempt:', { email, passwordProvided: !!password, rememberMe });
 
     try {
@@ -38,6 +66,11 @@ router.post('/login', async (req, res) => {
         if (!user) {
             console.log('User not found:', email);
             return res.status(400).json({ message: 'Invalid credentials' });
+        }
+        
+        // Check if user has password (for Google OAuth users)
+        if (!user.passwordHash) {
+            return res.status(400).json({ message: 'Please use Google sign-in for this account' });
         }
 
         console.log('User found, comparing password...');

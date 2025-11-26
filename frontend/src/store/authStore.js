@@ -59,7 +59,7 @@ const useAuthStore = create((set) => ({
         const tokenExpiry = localStorage.getItem('tokenExpiry');
 
         if (!token) {
-            set({ isLoading: false });
+            set({ isLoading: false, isAuthenticated: false });
             return;
         }
 
@@ -82,15 +82,18 @@ const useAuthStore = create((set) => ({
         } catch (err) {
             console.error('❌ Failed to load user:', err.response?.data || err.message);
             // Only logout if it's a 401 (unauthorized) error
-            if (err.response?.status === 401) {
+            if (err.response?.status === 401 || err.response?.status === 403) {
                 console.log('Invalid token, logging out');
                 localStorage.removeItem('token');
                 localStorage.removeItem('tokenExpiry');
                 set({ user: null, token: null, isAuthenticated: false, isLoading: false });
             } else {
-                // For other errors, keep the user logged in but stop loading
-                console.log('Keeping user logged in despite error');
-                set({ isLoading: false });
+                // For network errors or other issues, don't logout immediately
+                // Keep the token and let the user try again
+                console.log('Network error, keeping token for retry');
+                // Don't set isAuthenticated without valid user data
+                // But keep token so user can retry
+                set({ token, isLoading: false, isAuthenticated: false });
             }
         }
     }

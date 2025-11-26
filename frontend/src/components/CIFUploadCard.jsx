@@ -23,15 +23,25 @@ const CIFUploadCard = ({ onCIFParsed, initialData }) => {
                 headers: {
                     'Content-Type': 'multipart/form-data',
                     Authorization: `Bearer ${token}`
-                }
+                },
+                timeout: 60000 // 60 seconds timeout for AI parsing
             });
 
-            setCifData(res.data);
-            setEditedData(res.data);
-            onCIFParsed(res.data);
+            if (res.data && res.data.topics && res.data.topics.length > 0) {
+                setCifData(res.data);
+                setEditedData(res.data);
+                onCIFParsed(res.data);
+            } else {
+                alert('CIF parsed but no topics found. Please check the file format or try editing manually.');
+                // Still set the data so user can edit
+                setCifData(res.data);
+                setEditedData(res.data);
+                onCIFParsed(res.data);
+            }
         } catch (err) {
-            console.error(err);
-            alert('CIF parsing failed. Please check the file format.');
+            console.error('CIF parsing error:', err);
+            const errorMsg = err.response?.data?.message || err.message || 'CIF parsing failed';
+            alert(`CIF parsing failed: ${errorMsg}. Please check the file format or try again.`);
         } finally {
             setUploading(false);
         }

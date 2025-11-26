@@ -12,10 +12,31 @@ const TemplateSelector = ({ selectedTemplate, onSelect, onCustomTemplate }) => {
     const [customData, setCustomData] = useState({ name: '', marks: 100, duration: '3 hours' });
 
     const handleCustomSubmit = () => {
-        if (customData.name.trim() && customData.marks > 0) {
-            onCustomTemplate({ ...customData, id: 'custom' });
-            setShowCustom(false);
-            setCustomData({ name: '', marks: 100, duration: '3 hours' });
+        try {
+            if (!customData.name.trim()) {
+                alert('Please enter a template name');
+                return;
+            }
+            if (!customData.marks || customData.marks <= 0) {
+                alert('Please enter valid marks (greater than 0)');
+                return;
+            }
+            if (!customData.duration || !customData.duration.trim()) {
+                alert('Please enter a duration');
+                return;
+            }
+
+            if (onCustomTemplate) {
+                onCustomTemplate({ ...customData, id: 'custom' });
+                setShowCustom(false);
+                setCustomData({ name: '', marks: 100, duration: '3 hours' });
+            } else {
+                console.error('onCustomTemplate callback is not defined');
+                alert('Error: Template handler not available');
+            }
+        } catch (error) {
+            console.error('Error in handleCustomSubmit:', error);
+            alert('Error creating template. Please try again.');
         }
     };
 
@@ -101,19 +122,25 @@ const TemplateSelector = ({ selectedTemplate, onSelect, onCustomTemplate }) => {
                                 <label className="block text-sm font-bold text-black mb-2">Total Marks</label>
                                 <input
                                     type="number"
-                                    value={customData.marks}
-                                    onChange={(e) => setCustomData({ ...customData, marks: parseInt(e.target.value) })}
+                                    value={customData.marks || ''}
+                                    onChange={(e) => {
+                                        const value = parseInt(e.target.value) || 0;
+                                        setCustomData({ ...customData, marks: value > 0 ? value : 100 });
+                                    }}
                                     className="input-field"
+                                    min="1"
+                                    required
                                 />
                             </div>
                             <div>
                                 <label className="block text-sm font-bold text-black mb-2">Duration</label>
                                 <input
                                     type="text"
-                                    value={customData.duration}
+                                    value={customData.duration || ''}
                                     onChange={(e) => setCustomData({ ...customData, duration: e.target.value })}
                                     placeholder="e.g., 2 hours"
                                     className="input-field"
+                                    required
                                 />
                             </div>
                         </div>

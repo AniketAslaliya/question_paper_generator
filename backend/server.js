@@ -7,8 +7,12 @@ const logger = require('./middleware/logger');
 const app = express();
 
 // Middleware
-app.use(cors());
-app.use(express.json());
+app.use(cors({
+    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    credentials: true
+}));
+app.use(express.json({ limit: '50mb' })); // Limit request body size
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(logger); // Attach logger helper to all requests
 
 // Health Check

@@ -7,14 +7,37 @@ const pdfParse = require('pdf-parse');
 const mammoth = require('mammoth');
 const { generatePaper } = require('../services/geminiService');
 
-// Multer setup
+// Multer setup with file size limits
 const storage = multer.memoryStorage();
-const upload = multer({ storage: storage });
+const upload = multer({ 
+    storage: storage,
+    limits: {
+        fileSize: 10 * 1024 * 1024, // 10MB per file
+        files: 10 // Max 10 files
+    },
+    fileFilter: (req, file, cb) => {
+        const allowedMimes = [
+            'application/pdf',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'text/plain'
+        ];
+        if (allowedMimes.includes(file.mimetype)) {
+            cb(null, true);
+        } else {
+            cb(new Error('Invalid file type. Only PDF, DOCX, and TXT files are allowed.'), false);
+        }
+    }
+});
 
 // Phase 1: Upload & Analyze
 router.post('/create-phase1', auth, upload.single('file'), async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+        
+        // Validate file size
+        if (req.file.size > 10 * 1024 * 1024) {
+            return res.status(400).json({ message: 'File size exceeds 10MB limit' });
+        }
 
         let text = '';
         if (req.file.mimetype === 'application/pdf') {
@@ -27,8 +50,14 @@ router.post('/create-phase1', auth, upload.single('file'), async (req, res) => {
             text = req.file.buffer.toString('utf8');
         }
 
-        // Basic extraction simulation (In real app, use AI to extract chapters)
-        const chapters = ['Chapter 1', 'Chapter 2', 'Chapter 3'];
+        // Extract chapters using enhanced parsing
+        const { extractChapters } = require('../services/parsingService');
+        let chapters = extractChapters(text);
+        
+        // Fallback if no chapters found
+        if (chapters.length === 0) {
+            chapters = ['Chapter 1', 'Chapter 2', 'Chapter 3'];
+        }
 
         // Create initial paper record
         const paper = new Paper({
@@ -47,7 +76,13 @@ router.post('/create-phase1', auth, upload.single('file'), async (req, res) => {
         res.json({ paperId: paper.id, chapters, message: 'File processed successfully' });
     } catch (err) {
         console.error(err);
-        res.status(500).send('Server Error');
+        if (err.message && err.message.includes('Invalid file type')) {
+            return res.status(400).json({ message: err.message });
+        }
+        if (err.code === 'LIMIT_FILE_SIZE') {
+            return res.status(400).json({ message: 'File size exceeds limit' });
+        }
+        res.status(500).json({ message: 'Server Error', error: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
 });
 
@@ -56,6 +91,12 @@ router.post('/create-phase1-multi', auth, upload.array('files', 10), async (req,
     try {
         if (!req.files || req.files.length === 0) {
             return res.status(400).json({ message: 'No files uploaded' });
+        }
+        
+        // Validate total size
+        const totalSize = req.files.reduce((sum, file) => sum + file.size, 0);
+        if (totalSize > 50 * 1024 * 1024) { // 50MB total
+            return res.status(400).json({ message: 'Total file size exceeds 50MB limit' });
         }
 
         let combinedText = '';
@@ -94,11 +135,17 @@ router.post('/create-phase1-multi', auth, upload.array('files', 10), async (req,
             });
         }
 
-        // Extract chapters
-        const chapterMatches = combinedText.match(/Chapter\s+\d+[:\s-]*.*/gi);
-        const chapters = chapterMatches ?
-            [...new Set(chapterMatches.slice(0, 10))].map(ch => ch.trim()) :
-            ['Chapter 1', 'Chapter 2', 'Chapter 3'];
+        // Extract chapters using enhanced parsing
+        const { extractChapters } = require('../services/parsingService');
+        let chapters = extractChapters(combinedText);
+        
+        // Fallback if no chapters found
+        if (chapters.length === 0) {
+            const chapterMatches = combinedText.match(/Chapter\s+\d+[:\s-]*.*/gi);
+            chapters = chapterMatches ?
+                [...new Set(chapterMatches.slice(0, 10))].map(ch => ch.trim()) :
+                ['Chapter 1', 'Chapter 2', 'Chapter 3'];
+        }
 
         // Create initial paper record
         const paper = new Paper({
@@ -130,7 +177,13 @@ router.post('/create-phase1-multi', auth, upload.array('files', 10), async (req,
         });
     } catch (err) {
         console.error(err);
-        res.status(500).send('Server Error');
+        if (err.message && err.message.includes('Invalid file type')) {
+            return res.status(400).json({ message: err.message });
+        }
+        if (err.code === 'LIMIT_FILE_SIZE' || err.code === 'LIMIT_FILE_COUNT') {
+            return res.status(400).json({ message: err.message || 'File limit exceeded' });
+        }
+        res.status(500).json({ message: 'Server Error', error: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
 });
 
@@ -138,6 +191,26 @@ router.post('/create-phase1-multi', auth, upload.array('files', 10), async (req,
 // Phase 2: Configure Paper (Save Config)
 router.post('/create-phase2', auth, async (req, res) => {
     const { paperId, config } = req.body;
+    
+    // Validate input
+    if (!paperId) {
+        return res.status(400).json({ message: 'Paper ID is required' });
+    }
+    if (!config) {
+        return res.status(400).json({ message: 'Configuration is required' });
+    }
+    
+    // Validate config structure
+    if (config.sections && Array.isArray(config.sections)) {
+        const totalMarks = config.sections.reduce((sum, s) => sum + (parseInt(s.marks) || 0), 0);
+        const expectedMarks = config.marks || 100;
+        if (Math.abs(totalMarks - expectedMarks) > 1) { // Allow 1 mark difference for rounding
+            return res.status(400).json({ 
+                message: `Section marks (${totalMarks}) do not match total marks (${expectedMarks})` 
+            });
+        }
+    }
+    
     try {
         const paper = await Paper.findById(paperId);
         if (!paper) return res.status(404).json({ message: 'Paper not found' });
@@ -452,49 +525,21 @@ router.post('/parse-cif', auth, upload.single('cif'), async (req, res) => {
             text = req.file.buffer.toString('utf8');
         }
 
-        // Parse CIF content
-        const subjectNameMatch = text.match(/(?:Subject|Course)\s*(?:Name)?[\s:]+([^\n]+)/i);
-        const subjectName = subjectNameMatch ? subjectNameMatch[1].trim() : 'Unknown Subject';
-
-        // Extract topics and weightage
-        const topics = [];
-        const topicPatterns = [
-            /(?:Unit|Module|Topic|Chapter)\s+\d+[\s:]+([^\n]+?)[\s-]+(\d+)%?/gi,
-            /(\d+)\.\s+([^\n]+?)[\s-]+(\d+)%?/gi
-        ];
-
-        topicPatterns.forEach(pattern => {
-            let match;
-            while ((match = pattern.exec(text)) !== null) {
-                if (match.length >= 3) {
-                    const name = match[match.length - 2].trim();
-                    const weightage = parseInt(match[match.length - 1]) || 10;
-                    if (name && !topics.find(t => t.name === name)) {
-                        topics.push({ name, weightage });
-                    }
-                }
-            }
-        });
-
-        // If no topics found, create default structure
-        if (topics.length === 0) {
-            const lines = text.split('\n').filter(l => l.trim().length > 10);
-            lines.slice(0, 5).forEach((line, idx) => {
-                topics.push({
-                    name: line.trim().substring(0, 100),
-                    weightage: 20
-                });
-            });
+        if (!text || text.trim().length < 10) {
+            return res.status(400).json({ message: 'File appears to be empty or could not be parsed' });
         }
 
-        res.json({
-            subjectName,
-            topics,
-            totalTopics: topics.length
-        });
+        // Use enhanced parsing service
+        const { parseCIF } = require('../services/parsingService');
+        const parsedData = await parseCIF(text);
+
+        res.json(parsedData);
     } catch (err) {
-        console.error(err);
-        res.status(500).send('CIF Parsing Error');
+        console.error('CIF Parsing Error:', err);
+        res.status(500).json({ 
+            message: 'CIF Parsing Error', 
+            error: process.env.NODE_ENV === 'development' ? err.message : undefined 
+        });
     }
 });
 

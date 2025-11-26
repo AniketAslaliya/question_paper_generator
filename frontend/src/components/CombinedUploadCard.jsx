@@ -150,7 +150,10 @@ const CombinedUploadCard = ({ onUploadComplete, onCIFParsed }) => {
                         {cifData && (
                             <div className="p-6 bg-dark/5 rounded-lg border-2 border-dark/10 space-y-2">
                                 <p className="text-sm font-bold text-dark"><strong>Subject:</strong> {cifData.subjectName}</p>
-                                <p className="text-sm font-bold text-dark"><strong>Topics Found:</strong> {cifData.totalTopics}</p>
+                                <p className="text-sm font-bold text-dark"><strong>Topics Found:</strong> {cifData.totalTopics || cifData.topics?.length || 0}</p>
+                                {cifData.additionalInfo && (
+                                    <p className="text-xs text-dark/70 mt-2"><strong>Note:</strong> {cifData.additionalInfo}</p>
+                                )}
                             </div>
                         )}
                     </div>

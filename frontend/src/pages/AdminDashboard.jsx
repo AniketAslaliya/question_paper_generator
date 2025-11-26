@@ -19,15 +19,15 @@ const AdminDashboard = () => {
 
                 const [statsRes, usersRes, logsRes, papersRes] = await Promise.all([
                     api.get('/api/admin/stats', { headers }),
-                    api.get('/api/admin/users', { headers }),
-                    api.get('/api/admin/logs', { headers }),
-                    api.get('/api/admin/papers', { headers })
+                    api.get('/api/admin/users?page=1&limit=20', { headers }),
+                    api.get('/api/admin/logs?page=1&limit=50', { headers }),
+                    api.get('/api/admin/papers?page=1&limit=20', { headers })
                 ]);
 
                 setStats(statsRes.data);
-                setUsers(usersRes.data);
-                setLogs(logsRes.data);
-                setPapers(papersRes.data);
+                setUsers(usersRes.data.users || usersRes.data);
+                setLogs(logsRes.data.logs || logsRes.data);
+                setPapers(papersRes.data.papers || papersRes.data);
             } catch (err) {
                 console.error(err);
             }
