@@ -11,8 +11,17 @@ const useAuthStore = create((set) => ({
     login: async (email, password, rememberMe = false) => {
         set({ isLoading: true, error: null });
         try {
+            console.log('🔐 Attempting login for:', email);
+            console.log('🌐 API URL:', api.defaults.baseURL);
+            
             const res = await api.post('/api/auth/login', { email, password, rememberMe });
+            
+            if (!res.data || !res.data.token) {
+                throw new Error('Invalid response from server');
+            }
+            
             const { token, user } = res.data;
+            console.log('✅ Login successful, token received');
 
             // Store token and expiry
             localStorage.setItem('token', token);
@@ -23,7 +32,25 @@ const useAuthStore = create((set) => ({
             set({ user, token, isAuthenticated: true, isLoading: false, error: null });
             return true;
         } catch (err) {
-            const errorMsg = err.response?.data?.message || 'Login failed';
+            console.error('❌ Login error:', err);
+            console.error('Error details:', {
+                message: err.message,
+                response: err.response?.data,
+                status: err.response?.status,
+                code: err.code
+            });
+            
+            let errorMsg = 'Login failed';
+            if (err.response?.data?.message) {
+                errorMsg = err.response.data.message;
+            } else if (err.message) {
+                errorMsg = err.message;
+            } else if (err.code === 'ECONNREFUSED' || err.code === 'ERR_NETWORK') {
+                errorMsg = 'Cannot connect to server. Please check if the backend is running.';
+            } else if (err.code === 'ERR_BAD_REQUEST') {
+                errorMsg = 'Invalid credentials or server error';
+            }
+            
             set({ error: errorMsg, isLoading: false, isAuthenticated: false });
             throw new Error(errorMsg);
         }

@@ -7,9 +7,40 @@ const logger = require('./middleware/logger');
 const app = express();
 
 // Middleware
+const allowedOrigins = [
+    process.env.FRONTEND_URL,
+    'http://localhost:3000',
+    'http://localhost:5173', // Vite default
+    'https://question-paper-generator-sigma.vercel.app',
+    'https://*.vercel.app'
+].filter(Boolean);
+
 app.use(cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-    credentials: true
+    origin: function (origin, callback) {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) return callback(null, true);
+        
+        // Check if origin is in allowed list
+        if (allowedOrigins.some(allowed => {
+            if (allowed.includes('*')) {
+                const pattern = allowed.replace('*', '.*');
+                return new RegExp(pattern).test(origin);
+            }
+            return origin === allowed;
+        })) {
+            callback(null, true);
+        } else {
+            // For development, allow all origins
+            if (process.env.NODE_ENV !== 'production') {
+                callback(null, true);
+            } else {
+                callback(new Error('Not allowed by CORS'));
+            }
+        }
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json({ limit: '50mb' })); // Limit request body size
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));

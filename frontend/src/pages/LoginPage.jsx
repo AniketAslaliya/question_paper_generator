@@ -26,7 +26,14 @@ const LoginPage = () => {
                 navigate('/dashboard');
             }
         } catch (error) {
-            setError(error.message || 'Authentication failed');
+            console.error('Login page error:', error);
+            const errorMessage = error.message || 'Authentication failed';
+            setError(errorMessage);
+            // Show more detailed error in console for debugging
+            if (error.message?.includes('connect') || error.message?.includes('network')) {
+                console.error('Network error - check if backend is running and API_URL is correct');
+                console.error('Current API_URL:', import.meta.env.VITE_API_URL || 'http://localhost:5000');
+            }
         } finally {
             setLoading(false);
         }
@@ -97,9 +104,20 @@ const LoginPage = () => {
                         </div>
 
                         {error && (
-                            <div className="mb-6 p-4 bg-red-50 border-2 border-red-200 rounded-xl flex items-center gap-3">
-                                <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
-                                <p className="text-sm font-medium text-red-800">{error}</p>
+                            <div className="mb-6 p-4 bg-red-50 border-2 border-red-200 rounded-xl">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+                                    <p className="text-sm font-medium text-red-800">{error}</p>
+                                </div>
+                                {process.env.NODE_ENV === 'development' && (
+                                    <details className="mt-2 text-xs text-red-600">
+                                        <summary className="cursor-pointer">Debug Info</summary>
+                                        <pre className="mt-2 p-2 bg-red-100 rounded text-xs overflow-auto">
+                                            API URL: {import.meta.env.VITE_API_URL || 'http://localhost:5000'}
+                                            {'\n'}Current URL: {window.location.href}
+                                        </pre>
+                                    </details>
+                                )}
                             </div>
                         )}
 
