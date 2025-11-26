@@ -552,6 +552,9 @@ const enhanceAnswerKeyStyling = (jsonData) => {
 };
 
 const generateFallbackStructure = (sections, questionTypes, generateAnswerKey, cifData) => {
+  console.error('⚠️ WARNING: Using fallback structure - this should only happen if AI completely fails');
+  console.error('⚠️ This means the AI generation failed and we cannot generate real questions');
+  
   // Default sections if none provided
   const defaultSections = sections && Array.isArray(sections) && sections.length > 0 
     ? sections 
@@ -572,13 +575,13 @@ const generateFallbackStructure = (sections, questionTypes, generateAnswerKey, c
         instructions: "Answer all questions from this section",
         questions: Array.from({ length: s.questionCount || 5 }, (_, i) => ({
           id: i + 1,
-          text: `Question ${i + 1} for ${s.name || 'Section'} - Based on the reference material provided`,
+          text: `[PLACEHOLDER - AI Generation Failed] Please regenerate the paper. Question ${i + 1} for ${s.name || 'Section'}`,
           marks: s.questionCount > 0 ? Math.floor((s.marks || 0) / s.questionCount) : 10,
           type: s.questionType || 'Theoretical',
           difficulty: i % 3 === 0 ? 'Easy' : i % 3 === 1 ? 'Medium' : 'Hard',
           bloomLevel: 'Understand',
           chapter: 'General',
-          answer: generateAnswerKey ? 'Sample answer based on course content' : null
+          answer: generateAnswerKey ? '[AI Generation Failed - Please regenerate]' : null
         }))
       }))
     }
