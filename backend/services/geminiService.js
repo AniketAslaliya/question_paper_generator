@@ -20,7 +20,7 @@ const generatePaper = async ({
 }) => {
   const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-  const sectionsInfo = sections ? sections.map(s => `${s.name}: ${s.questionCount} questions, ${s.marks} marks`).join('; ') : 'Not specified';
+  const sectionsInfo = sections ? sections.map(s => `${s.name}: ${s.questionCount} questions, ${s.marks} marks, Type: ${s.questionType || 'Mixed'}`).join('; ') : '';
   const bloomsInfo = bloomsTaxonomy ? Object.entries(bloomsTaxonomy).map(([level, percent]) => `${level}: ${percent}%`).join(', ') : 'Not specified';
 
   const previousQuestionsContext = previousVersions.length > 0
@@ -48,6 +48,7 @@ CRITICAL INSTRUCTIONS:
 4. Include mandatory exercises EXACTLY as specified
 5. Prioritize important topics mentioned
 6. Use reference questions as style guides
+7. STRICTLY FOLLOW the question type specified for each section
 ${previousQuestionsContext}
 ${referenceContext}
 ${importantTopicsContext}
@@ -58,9 +59,8 @@ ${extractedText.substring(0, 15000)}... (truncated for context)
 
 PAPER CONFIGURATION:
 - Total Marks: ${templateConfig.marks}
-- Sections: ${sectionsInfo}
+- Sections Configuration (STRICTLY FOLLOW): ${sectionsInfo}
 - Difficulty Distribution: Easy ${difficulty.easy}%, Medium ${difficulty.medium}%, Hard ${difficulty.hard}%
-- Question Types: ${questionTypes.join(', ')}
 - Bloom's Taxonomy Distribution: ${bloomsInfo}
 - Mandatory Exercises to Include: ${JSON.stringify(mandatoryList)}
 - Generate Answer Key: ${generateAnswerKey ? 'YES' : 'NO'}
@@ -398,7 +398,7 @@ const generateFallbackStructure = (sections, questionTypes, generateAnswerKey, c
           id: i + 1,
           text: `Question ${i + 1} for ${s.name} - Based on the reference material provided`,
           marks: Math.floor(s.marks / s.questionCount),
-          type: questionTypes[i % questionTypes.length] || 'Theoretical',
+          type: s.questionType || 'Theoretical',
           difficulty: i % 3 === 0 ? 'Easy' : i % 3 === 1 ? 'Medium' : 'Hard',
           bloomLevel: 'Understand',
           chapter: 'General',

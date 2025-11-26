@@ -8,7 +8,6 @@ import CombinedUploadCard from '../components/CombinedUploadCard';
 import TemplateSelector from '../components/TemplateSelector';
 import WeightageTable from '../components/WeightageTable';
 import SectionConfigCard from '../components/SectionConfigCard';
-import QuestionTypeSelector from '../components/QuestionTypeSelector';
 import BloomsTaxonomySelector from '../components/BloomsTaxonomySelector';
 import ExerciseSelector from '../components/ExerciseSelector';
 import ReferenceQuestionsCard from '../components/ReferenceQuestionsCard';
@@ -32,15 +31,14 @@ const CreatePaperPage = () => {
         templateName: 'midterm',
         marks: 100,
         difficulty: { easy: 30, medium: 50, hard: 20 },
-        questionTypes: ['theoretical', 'conceptual'],
         weightage: {},
         mandatoryExercises: [],
         referenceQuestions: [],
         importantTopics: '',
         generateAnswerKey: false,
         sections: [
-            { name: 'Section A', marks: 40, questionCount: 5 },
-            { name: 'Section B', marks: 60, questionCount: 4 }
+            { name: 'Section A', marks: 40, questionCount: 5, questionType: 'Multiple Choice' },
+            { name: 'Section B', marks: 60, questionCount: 4, questionType: 'Long Answer' }
         ],
         bloomsTaxonomy: {
             remember: 20,
@@ -121,7 +119,7 @@ const CreatePaperPage = () => {
             duration: templateData.duration,
             // Reset sections to match new marks to avoid conflicts
             sections: [
-                { name: 'Section A', marks: parseInt(templateData.marks), questionCount: 5 }
+                { name: 'Section A', marks: parseInt(templateData.marks), questionCount: 5, questionType: 'Theoretical' }
             ]
         });
     };
@@ -311,95 +309,87 @@ const CreatePaperPage = () => {
                             />
                         </section>
 
+                        <section>
+                            <h3 className="section-title">3. Difficulty Distribution</h3>
+                            <div className="card space-y-6">
+                                <div>
+                                    <label className="flex justify-between text-sm font-bold text-black mb-2">
+                                        Easy <span className="text-lg">{config.difficulty.easy}%</span>
+                                    </label>
+                                    <input
+                                        type="range"
+                                        value={config.difficulty.easy}
+                                        onChange={(e) => setConfig({ ...config, difficulty: { ...config.difficulty, easy: parseInt(e.target.value) } })}
+                                        className="w-full h-3 rounded-lg appearance-none cursor-pointer"
+                                        style={{
+                                            background: `linear-gradient(to right, #000 0%, #000 ${config.difficulty.easy}%, #e5e7eb ${config.difficulty.easy}%, #e5e7eb 100%)`
+                                        }}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="flex justify-between text-sm font-bold text-black mb-2">
+                                        Medium <span className="text-lg">{config.difficulty.medium}%</span>
+                                    </label>
+                                    <input
+                                        type="range"
+                                        value={config.difficulty.medium}
+                                        onChange={(e) => setConfig({ ...config, difficulty: { ...config.difficulty, medium: parseInt(e.target.value) } })}
+                                        className="w-full h-3 rounded-lg appearance-none cursor-pointer"
+                                        style={{
+                                            background: `linear-gradient(to right, #000 0%, #000 ${config.difficulty.medium}%, #e5e7eb ${config.difficulty.medium}%, #e5e7eb 100%)`
+                                        }}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="flex justify-between text-sm font-bold text-black mb-2">
+                                        Hard <span className="text-lg">{config.difficulty.hard}%</span>
+                                    </label>
+                                    <input
+                                        type="range"
+                                        value={config.difficulty.hard}
+                                        onChange={(e) => setConfig({ ...config, difficulty: { ...config.difficulty, hard: parseInt(e.target.value) } })}
+                                        className="w-full h-3 rounded-lg appearance-none cursor-pointer"
+                                        style={{
+                                            background: `linear-gradient(to right, #000 0%, #000 ${config.difficulty.hard}%, #e5e7eb ${config.difficulty.hard}%, #e5e7eb 100%)`
+                                        }}
+                                    />
+                                </div>
+                            </div>
+                        </section>
+
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                             <section>
-                                <h3 className="section-title">2. Question Types</h3>
-                                <QuestionTypeSelector
-                                    selectedTypes={config.questionTypes}
-                                    onUpdate={(types) => setConfig({ ...config, questionTypes: types })}
+                                <h3 className="section-title">5. Important Topics (Compulsory)</h3>
+                                <ImportantTopicsCard
+                                    topics={config.importantTopics}
+                                    onUpdate={(topics) => setConfig({ ...config, importantTopics: topics })}
                                 />
                             </section>
 
                             <section>
-                                <h3 className="section-title">3. Difficulty Distribution</h3>
-                                <div className="card space-y-6">
-                                    <div>
-                                        <label className="flex justify-between text-sm font-bold text-black mb-2">
-                                            Easy <span className="text-lg">{config.difficulty.easy}%</span>
-                                        </label>
-                                        <input
-                                            type="range"
-                                            value={config.difficulty.easy}
-                                            onChange={(e) => setConfig({ ...config, difficulty: { ...config.difficulty, easy: parseInt(e.target.value) } })}
-                                            className="w-full h-3 rounded-lg appearance-none cursor-pointer"
-                                            style={{
-                                                background: `linear-gradient(to right, #000 0%, #000 ${config.difficulty.easy}%, #e5e7eb ${config.difficulty.easy}%, #e5e7eb 100%)`
-                                            }}
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="flex justify-between text-sm font-bold text-black mb-2">
-                                            Medium <span className="text-lg">{config.difficulty.medium}%</span>
-                                        </label>
-                                        <input
-                                            type="range"
-                                            value={config.difficulty.medium}
-                                            onChange={(e) => setConfig({ ...config, difficulty: { ...config.difficulty, medium: parseInt(e.target.value) } })}
-                                            className="w-full h-3 rounded-lg appearance-none cursor-pointer"
-                                            style={{
-                                                background: `linear-gradient(to right, #000 0%, #000 ${config.difficulty.medium}%, #e5e7eb ${config.difficulty.medium}%, #e5e7eb 100%)`
-                                            }}
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="flex justify-between text-sm font-bold text-black mb-2">
-                                            Hard <span className="text-lg">{config.difficulty.hard}%</span>
-                                        </label>
-                                        <input
-                                            type="range"
-                                            value={config.difficulty.hard}
-                                            onChange={(e) => setConfig({ ...config, difficulty: { ...config.difficulty, hard: parseInt(e.target.value) } })}
-                                            className="w-full h-3 rounded-lg appearance-none cursor-pointer"
-                                            style={{
-                                                background: `linear-gradient(to right, #000 0%, #000 ${config.difficulty.hard}%, #e5e7eb ${config.difficulty.hard}%, #e5e7eb 100%)`
-                                            }}
-                                        />
-                                    </div>
-                                </div>
+                                <h3 className="section-title">6. Reference Questions</h3>
+                                <ReferenceQuestionsCard
+                                    references={config.referenceQuestions}
+                                    onUpdate={(refs) => setConfig({ ...config, referenceQuestions: refs })}
+                                />
+                            </section>
+
+                            <section>
+                                <h3 className="section-title">7. Mandatory Exercises</h3>
+                                <ExerciseSelector
+                                    exercises={detectedExercises}
+                                    onUpdate={(exercises) => setConfig({ ...config, mandatoryExercises: exercises })}
+                                />
+                            </section>
+
+                            <section>
+                                <h3 className="section-title">8. Bloom's Taxonomy Levels</h3>
+                                <BloomsTaxonomySelector
+                                    distribution={config.bloomsTaxonomy}
+                                    onUpdate={(dist) => setConfig({ ...config, bloomsTaxonomy: dist })}
+                                />
                             </section>
                         </div>
-
-                        <section>
-                            <h3 className="section-title">5. Important Topics (Compulsory)</h3>
-                            <ImportantTopicsCard
-                                topics={config.importantTopics}
-                                onUpdate={(topics) => setConfig({ ...config, importantTopics: topics })}
-                            />
-                        </section>
-
-                        <section>
-                            <h3 className="section-title">6. Reference Questions</h3>
-                            <ReferenceQuestionsCard
-                                references={config.referenceQuestions}
-                                onUpdate={(refs) => setConfig({ ...config, referenceQuestions: refs })}
-                            />
-                        </section>
-
-                        <section>
-                            <h3 className="section-title">7. Mandatory Exercises</h3>
-                            <ExerciseSelector
-                                exercises={detectedExercises}
-                                onUpdate={(exercises) => setConfig({ ...config, mandatoryExercises: exercises })}
-                            />
-                        </section>
-
-                        <section>
-                            <h3 className="section-title">8. Bloom's Taxonomy Levels</h3>
-                            <BloomsTaxonomySelector
-                                distribution={config.bloomsTaxonomy}
-                                onUpdate={(dist) => setConfig({ ...config, bloomsTaxonomy: dist })}
-                            />
-                        </section>
 
                         <section>
                             <h3 className="section-title">9. Chapter/Topic Weightage</h3>
@@ -438,7 +428,6 @@ const CreatePaperPage = () => {
                                 <ConfigPreview
                                     config={config}
                                     sections={config.sections}
-                                    questionTypes={config.questionTypes}
                                     bloomsTaxonomy={config.bloomsTaxonomy}
                                 />
                             </section>
@@ -462,7 +451,7 @@ const CreatePaperPage = () => {
                                 </button>
                                 <button
                                     onClick={handleGenerate}
-                                    disabled={loading || config.questionTypes.length === 0}
+                                    disabled={loading}
                                     className="btn-primary flex items-center gap-2 text-lg px-8 py-4 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     {loading ? 'Generating...' : 'Generate Paper'}

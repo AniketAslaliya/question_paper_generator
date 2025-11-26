@@ -168,6 +168,7 @@ const AdminDashboard = () => {
                                     <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Paper Name</th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Subject</th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Created By</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Role</th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Questions</th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Total Marks</th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Date</th>
@@ -184,6 +185,15 @@ const AdminDashboard = () => {
 
                                     return (
                                         <tr key={paper._id}>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">{paper.paperName}</td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{paper.subject || 'N/A'}</td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{paper.userName}</td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
+                                                <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${paper.userRole === 'admin' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'}`}>
+                                                    {paper.userRole || 'teacher'}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{totalQuestions}</td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{totalMarks}</td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{new Date(paper.createdAt).toLocaleDateString()}</td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
@@ -196,7 +206,7 @@ const AdminDashboard = () => {
                                                         View
                                                     </button>
                                                     <a
-                                                        href={`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/papers/${paper._id}/download/pdf`}
+                                                        href={`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/papers/${paper._id}/export/pdf`}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
                                                         className="inline-flex items-center gap-1 px-3 py-1 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors"

@@ -1,12 +1,24 @@
 import { useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 
+const QUESTION_TYPES = [
+    'Multiple Choice',
+    'True/False',
+    'Fill in the Blanks',
+    'Short Answer',
+    'Long Answer',
+    'Problem Solving',
+    'Conceptual',
+    'Theoretical'
+];
+
 const SectionConfigCard = ({ sections, onUpdate }) => {
     const addSection = () => {
         const newSection = {
             name: `Section ${String.fromCharCode(65 + sections.length)}`,
             marks: 20,
-            questionCount: 4
+            questionCount: 4,
+            questionType: 'Theoretical' // Default type
         };
         onUpdate([...sections, newSection]);
     };
@@ -48,7 +60,7 @@ const SectionConfigCard = ({ sections, onUpdate }) => {
                             )}
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
                                 <label className="block text-sm font-bold text-dark mb-2">Marks</label>
                                 <input
@@ -68,6 +80,18 @@ const SectionConfigCard = ({ sections, onUpdate }) => {
                                     className="input-field"
                                     min="1"
                                 />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-dark mb-2">Question Type</label>
+                                <select
+                                    value={section.questionType || 'Theoretical'}
+                                    onChange={(e) => updateSection(index, 'questionType', e.target.value)}
+                                    className="input-field"
+                                >
+                                    {QUESTION_TYPES.map(type => (
+                                        <option key={type} value={type}>{type}</option>
+                                    ))}
+                                </select>
                             </div>
                         </div>
                     </div>
