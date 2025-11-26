@@ -38,7 +38,7 @@ const SectionConfigCard = ({ sections, onUpdate, totalMarks = 100 }) => {
         onUpdate(updated);
     };
 
-    const totalMarks = sections.reduce((sum, s) => sum + (parseInt(s.marks) || 0), 0);
+    const calculatedTotalMarks = sections.reduce((sum, s) => sum + (parseInt(s.marks) || 0), 0);
 
     return (
         <div className="card">
@@ -109,8 +109,8 @@ const SectionConfigCard = ({ sections, onUpdate, totalMarks = 100 }) => {
                     Add Section
                 </button>
 
-                <div className={`text-lg font-bold ${totalMarks === (sections.reduce((sum, s) => sum + (parseInt(s.marks) || 0), 0)) ? 'text-dark' : 'text-red-600'}`}>
-                    Total: {sections.reduce((sum, s) => sum + (parseInt(s.marks) || 0), 0)} / {totalMarks} marks
+                <div className={`text-lg font-bold ${calculatedTotalMarks === totalMarks ? 'text-dark' : 'text-red-600'}`}>
+                    Total: {calculatedTotalMarks} / {totalMarks} marks
                 </div>
             </div>
         </div>
