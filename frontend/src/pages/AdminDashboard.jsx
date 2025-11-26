@@ -172,7 +172,7 @@ const AdminDashboard = () => {
                                 ))}
                             </tbody>
                         </table>
-                    ) : (
+                    ) : activeTab === 'papers' ? (
                         <table className="min-w-full divide-y divide-slate-200">
                             <thead className="bg-slate-50">
                                 <tr>
@@ -307,6 +307,10 @@ const AdminDashboard = () => {
                                     )}
                                 </tbody>
                             </table>
+                        </div>
+                    ) : (
+                        <div className="p-6 text-center text-slate-500">
+                            <p>Unknown tab selected</p>
                         </div>
                     )}
                 </div>
