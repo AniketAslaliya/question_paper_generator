@@ -12,6 +12,7 @@ import BloomsTaxonomySelector from '../components/BloomsTaxonomySelector';
 import ExerciseSelector from '../components/ExerciseSelector';
 import ReferenceQuestionsCard from '../components/ReferenceQuestionsCard';
 import ImportantTopicsCard from '../components/ImportantTopicsCard';
+import ImportantQuestionsCard from '../components/ImportantQuestionsCard';
 import ConfigPreview from '../components/ConfigPreview';
 import RichEditor from '../components/RichEditor';
 import { ArrowRight, ArrowLeft, Save, RefreshCw, Download, Eye, CheckCircle, Clock } from 'lucide-react';
@@ -515,9 +516,23 @@ const CreatePaperPage = () => {
                             </div>
                         </section>
 
+                        <section>
+                            <h3 className="section-title">5. Important Questions</h3>
+                            <ImportantQuestionsCard
+                                importantQuestions={importantQuestions}
+                                onAdd={handleAddImportantQuestion}
+                                onDelete={handleDeleteImportantQuestion}
+                                onSuggest={handleSuggestQuestions}
+                                onAddSuggested={handleAddSuggestedQuestion}
+                                suggestedQuestions={suggestedQuestions}
+                                showSuggestions={showSuggestions}
+                                loadingSuggestions={loadingSuggestions}
+                            />
+                        </section>
+
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                             <section>
-                                <h3 className="section-title">5. Important Topics (Compulsory)</h3>
+                                <h3 className="section-title">6. Important Topics (Compulsory)</h3>
                                 <ImportantTopicsCard
                                     topics={config.importantTopics}
                                     onUpdate={(topics) => setConfig({ ...config, importantTopics: topics })}
@@ -525,7 +540,7 @@ const CreatePaperPage = () => {
                             </section>
 
                             <section>
-                                <h3 className="section-title">6. Reference Questions</h3>
+                                <h3 className="section-title">7. Reference Questions</h3>
                                 <ReferenceQuestionsCard
                                     references={config.referenceQuestions}
                                     onUpdate={(refs) => setConfig({ ...config, referenceQuestions: refs })}
