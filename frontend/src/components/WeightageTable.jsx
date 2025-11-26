@@ -4,7 +4,7 @@ const WeightageTable = ({ chapters, onUpdate }) => {
     const [weights, setWeights] = useState({});
 
     useEffect(() => {
-        if (chapters.length > 0) {
+        if (chapters && Array.isArray(chapters) && chapters.length > 0) {
             const initialWeights = {};
             const equalShare = Math.floor(100 / chapters.length);
             chapters.forEach(ch => {
@@ -36,11 +36,11 @@ const WeightageTable = ({ chapters, onUpdate }) => {
                         </tr>
                     </thead>
                     <tbody>
-                        {chapters.map((chapter, idx) => {
+                        {chapters && Array.isArray(chapters) && chapters.map((chapter, idx) => {
                             const chapterName = typeof chapter === 'string' ? chapter : chapter.name;
                             return (
                                 <tr key={chapterName || idx} className="border-b border-gray-200 hover:bg-gray-50">
-                                    <td className="px-6 py-4 text-sm font-medium text-black">{chapterName}</td>
+                                    <td className="px-6 py-4 text-sm font-medium text-black">{chapterName || 'Unknown'}</td>
                                     <td className="px-6 py-4">
                                         <input
                                             type="number"

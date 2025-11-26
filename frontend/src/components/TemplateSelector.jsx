@@ -11,10 +11,13 @@ const TemplateSelector = ({ selectedTemplate, onSelect, onCustomTemplate }) => {
     const [showCustom, setShowCustom] = useState(false);
     const [customData, setCustomData] = useState({ name: '', marks: 100, duration: '3 hours' });
 
-    if (customData.name.trim()) {
-        onCustomTemplate({ ...customData, id: 'custom' });
-        setShowCustom(false);
-    }
+    const handleCustomSubmit = () => {
+        if (customData.name.trim() && customData.marks > 0) {
+            onCustomTemplate({ ...customData, id: 'custom' });
+            setShowCustom(false);
+            setCustomData({ name: '', marks: 100, duration: '3 hours' });
+        }
+    };
 
     return (
         <div className="space-y-6">

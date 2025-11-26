@@ -167,8 +167,14 @@ router.post('/create-phase3', auth, async (req, res) => {
         }
 
         console.log('✅ Paper found, starting generation...');
+        
+        // Validate extractedData and textChunks
+        if (!paper.extractedData || !paper.extractedData.textChunks || paper.extractedData.textChunks.length === 0) {
+            return res.status(400).json({ message: 'No text content found. Please upload files first.' });
+        }
+        
         const generatedData = await generatePaper({
-            extractedText: paper.extractedData.textChunks[0],
+            extractedText: paper.extractedData.textChunks[0] || '',
             templateConfig: paper.config,
             difficulty: paper.config.difficulty,
             weightage: paper.config.weightage,
@@ -181,7 +187,8 @@ router.post('/create-phase3', auth, async (req, res) => {
             previousVersions: [],
             referenceQuestions: paper.config.referenceQuestions || [],
             importantTopics: paper.config.importantTopics || '',
-            cifData: paper.config.cifData || null
+            cifData: paper.config.cifData || null,
+            duration: paper.config.duration || '3 Hours'
         });
 
         console.log('✅ Paper generated successfully');
@@ -216,8 +223,13 @@ router.post('/:id/regenerate', auth, async (req, res) => {
         if (!paper) return res.status(404).json({ message: 'Paper not found' });
         if (paper.userId.toString() !== req.user.id) return res.status(401).json({ message: 'Unauthorized' });
 
+        // Validate extractedData and textChunks
+        if (!paper.extractedData || !paper.extractedData.textChunks || paper.extractedData.textChunks.length === 0) {
+            return res.status(400).json({ message: 'No text content found. Please upload files first.' });
+        }
+
         const generatedData = await generatePaper({
-            extractedText: paper.extractedData.textChunks[0],
+            extractedText: paper.extractedData.textChunks[0] || '',
             templateConfig: paper.config,
             difficulty: paper.config.difficulty,
             weightage: paper.config.weightage,
@@ -227,10 +239,11 @@ router.post('/:id/regenerate', auth, async (req, res) => {
             mandatoryList: paper.config.mandatoryExercises || [],
             generateAnswerKey: paper.config.generateAnswerKey || false,
             setsRequired: paper.config.setsGenerated,
-            previousVersions: paper.versions,
+            previousVersions: paper.versions || [],
             referenceQuestions: paper.config.referenceQuestions || [],
             importantTopics: paper.config.importantTopics || '',
-            cifData: paper.config.cifData || null
+            cifData: paper.config.cifData || null,
+            duration: paper.config.duration || '3 Hours'
         });
 
         paper.versions.push({
@@ -263,6 +276,32 @@ router.get('/my', auth, async (req, res) => {
     }
 });
 
+// Update Paper Content (after editing)
+router.put('/:id/update-content', auth, async (req, res) => {
+    try {
+        const paper = await Paper.findById(req.params.id);
+        if (!paper) return res.status(404).json({ message: 'Paper not found' });
+        if (paper.userId.toString() !== req.user.id && req.user.role !== 'admin') {
+            return res.status(401).json({ message: 'Unauthorized' });
+        }
+
+        if (!paper.versions || paper.versions.length === 0) {
+            return res.status(400).json({ message: 'No version found to update' });
+        }
+
+        const latestVersion = paper.versions[paper.versions.length - 1];
+        latestVersion.generatedContentHTML = req.body.content;
+        await paper.save();
+
+        if (req.logActivity) await req.logActivity('paper_edited', { paperId: paper.id });
+
+        res.json({ message: 'Paper updated successfully', paper });
+    } catch (err) {
+        console.error(err);
+        res.status(500).send('Server Error');
+    }
+});
+
 // Get Single Paper
 router.get('/:id', auth, async (req, res) => {
     try {
@@ -289,7 +328,15 @@ router.get('/:id/export/pdf', auth, async (req, res) => {
             return res.status(401).json({ message: 'Unauthorized' });
         }
 
+        if (!paper.versions || paper.versions.length === 0) {
+            return res.status(400).json({ message: 'No generated paper found. Please generate the paper first.' });
+        }
+
         const latestVersion = paper.versions[paper.versions.length - 1];
+        if (!latestVersion || !latestVersion.generatedContentHTML) {
+            return res.status(400).json({ message: 'Generated content not found for this paper version.' });
+        }
+
         const pdfBuffer = await exportToPDF(latestVersion.generatedContentHTML);
 
         res.setHeader('Content-Type', 'application/pdf');
@@ -309,7 +356,15 @@ router.get('/:id/export/docx', auth, async (req, res) => {
             return res.status(401).json({ message: 'Unauthorized' });
         }
 
+        if (!paper.versions || paper.versions.length === 0) {
+            return res.status(400).json({ message: 'No generated paper found. Please generate the paper first.' });
+        }
+
         const latestVersion = paper.versions[paper.versions.length - 1];
+        if (!latestVersion || !latestVersion.generatedContentJSON) {
+            return res.status(400).json({ message: 'Generated content not found for this paper version.' });
+        }
+
         const docxBuffer = await exportToDOCX(latestVersion.generatedContentJSON);
 
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
@@ -329,7 +384,15 @@ router.get('/:id/export/html', auth, async (req, res) => {
             return res.status(401).json({ message: 'Unauthorized' });
         }
 
+        if (!paper.versions || paper.versions.length === 0) {
+            return res.status(400).json({ message: 'No generated paper found. Please generate the paper first.' });
+        }
+
         const latestVersion = paper.versions[paper.versions.length - 1];
+        if (!latestVersion || !latestVersion.generatedContentHTML) {
+            return res.status(400).json({ message: 'Generated content not found for this paper version.' });
+        }
+
         const htmlBuffer = exportToHTML(latestVersion.generatedContentHTML);
 
         res.setHeader('Content-Type', 'text/html');
@@ -349,10 +412,17 @@ router.get('/:id/export/answer-key', auth, async (req, res) => {
             return res.status(401).json({ message: 'Unauthorized' });
         }
 
+        if (!paper.versions || paper.versions.length === 0) {
+            return res.status(400).json({ message: 'No generated paper found. Please generate the paper first.' });
+        }
+
         const latestVersion = paper.versions[paper.versions.length - 1];
+        if (!latestVersion) {
+            return res.status(400).json({ message: 'Paper version not found.' });
+        }
 
         if (!latestVersion.generatedAnswerKeyHTML) {
-            return res.status(404).send('Answer Key not generated for this paper');
+            return res.status(404).json({ message: 'Answer Key not generated for this paper' });
         }
 
         const pdfBuffer = await exportToPDF(latestVersion.generatedAnswerKeyHTML);

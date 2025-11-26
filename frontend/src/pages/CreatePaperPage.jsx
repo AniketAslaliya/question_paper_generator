@@ -30,6 +30,7 @@ const CreatePaperPage = () => {
     const [config, setConfig] = useState({
         templateName: 'midterm',
         marks: 100,
+        duration: '3 hours',
         difficulty: { easy: 30, medium: 50, hard: 20 },
         weightage: {},
         mandatoryExercises: [],
@@ -111,16 +112,22 @@ const CreatePaperPage = () => {
     };
 
     const handleCustomTemplate = (templateData) => {
+        const totalMarks = parseInt(templateData.marks) || 100;
+        // Reset sections to match new marks - distribute evenly
+        const sectionCount = 2;
+        const marksPerSection = Math.floor(totalMarks / sectionCount);
+        const sections = [
+            { name: 'Section A', marks: marksPerSection, questionCount: 5, questionType: 'Theoretical' },
+            { name: 'Section B', marks: totalMarks - marksPerSection, questionCount: 4, questionType: 'Long Answer' }
+        ];
+        
         setConfig({
             ...config,
             templateName: 'custom',
-            marks: templateData.marks,
+            marks: totalMarks,
             customTemplateName: templateData.name,
             duration: templateData.duration,
-            // Reset sections to match new marks to avoid conflicts
-            sections: [
-                { name: 'Section A', marks: parseInt(templateData.marks), questionCount: 5, questionType: 'Theoretical' }
-            ]
+            sections: sections
         });
     };
 
@@ -273,7 +280,24 @@ const CreatePaperPage = () => {
                         </div>
                         <TemplateSelector
                             selectedTemplate={config.templateName}
-                            onSelect={(id) => setConfig({ ...config, templateName: id })}
+                            onSelect={(id) => {
+                                const templates = {
+                                    'midterm': { marks: 100, duration: '3 hours' },
+                                    'final': { marks: 150, duration: '4 hours' },
+                                    'quiz': { marks: 50, duration: '1 hour' }
+                                };
+                                const template = templates[id];
+                                if (template) {
+                                    setConfig({
+                                        ...config,
+                                        templateName: id,
+                                        marks: template.marks,
+                                        duration: template.duration
+                                    });
+                                } else {
+                                    setConfig({ ...config, templateName: id });
+                                }
+                            }}
                             onCustomTemplate={handleCustomTemplate}
                         />
                         <div className="flex justify-between mt-8">
@@ -306,6 +330,7 @@ const CreatePaperPage = () => {
                             <SectionConfigCard
                                 sections={config.sections}
                                 onUpdate={(sections) => setConfig({ ...config, sections })}
+                                totalMarks={config.marks || 100}
                             />
                         </section>
 
@@ -541,6 +566,20 @@ const CreatePaperPage = () => {
                             <RichEditor
                                 value={generatedContent}
                                 onChange={setGeneratedContent}
+                                onSave={async (content) => {
+                                    try {
+                                        const token = localStorage.getItem('token');
+                                        await axios.put(`${API_URL}/api/papers/${paperId}/update-content`, {
+                                            content: content
+                                        }, {
+                                            headers: { Authorization: `Bearer ${token}` }
+                                        });
+                                        alert('Paper updated successfully!');
+                                    } catch (err) {
+                                        console.error('Failed to save:', err);
+                                        alert('Failed to save changes. Please try again.');
+                                    }
+                                }}
                             />
                         </div>
                     </div>

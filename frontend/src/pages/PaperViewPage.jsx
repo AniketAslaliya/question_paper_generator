@@ -31,8 +31,24 @@ const PaperViewPage = () => {
     if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
     if (!paper) return <div className="min-h-screen flex items-center justify-center">Paper not found</div>;
 
-    const latestVersion = paper.versions[paper.versions.length - 1];
+    const latestVersion = paper.versions && paper.versions.length > 0 
+        ? paper.versions[paper.versions.length - 1] 
+        : null;
     const [activeTab, setActiveTab] = useState('questionPaper'); // 'questionPaper' or 'answerKey'
+    
+    if (!latestVersion) {
+        return (
+            <div className="min-h-screen bg-slate-50">
+                <Navbar />
+                <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
+                        <p className="text-yellow-800">No generated content found for this paper. Please generate the paper first.</p>
+                        <Link to="/dashboard" className="mt-4 inline-block btn-primary">Back to Dashboard</Link>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     const handleDownload = (type) => {
         const token = localStorage.getItem('token');

@@ -44,8 +44,12 @@ const CIFUploadCard = ({ onCIFParsed, initialData }) => {
     };
 
     const updateWeightage = (index, value) => {
+        if (!editedData || !editedData.topics || !editedData.topics[index]) {
+            return;
+        }
         const updated = { ...editedData };
-        updated.topics[index].weightage = parseInt(value) || 0;
+        updated.topics = [...updated.topics];
+        updated.topics[index] = { ...updated.topics[index], weightage: parseInt(value) || 0 };
         setEditedData(updated);
     };
 

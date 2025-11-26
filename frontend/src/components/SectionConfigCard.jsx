@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 
 const QUESTION_TYPES = [
+    'Mixed',
     'Multiple Choice',
     'True/False',
     'Fill in the Blanks',
@@ -9,10 +10,11 @@ const QUESTION_TYPES = [
     'Long Answer',
     'Problem Solving',
     'Conceptual',
-    'Theoretical'
+    'Theoretical',
+    'Numerical'
 ];
 
-const SectionConfigCard = ({ sections, onUpdate }) => {
+const SectionConfigCard = ({ sections, onUpdate, totalMarks = 100 }) => {
     const addSection = () => {
         const newSection = {
             name: `Section ${String.fromCharCode(65 + sections.length)}`,
@@ -107,8 +109,8 @@ const SectionConfigCard = ({ sections, onUpdate }) => {
                     Add Section
                 </button>
 
-                <div className={`text-lg font-bold ${totalMarks === 100 ? 'text-dark' : 'text-red-600'}`}>
-                    Total: {totalMarks} / 100 marks
+                <div className={`text-lg font-bold ${totalMarks === (sections.reduce((sum, s) => sum + (parseInt(s.marks) || 0), 0)) ? 'text-dark' : 'text-red-600'}`}>
+                    Total: {sections.reduce((sum, s) => sum + (parseInt(s.marks) || 0), 0)} / {totalMarks} marks
                 </div>
             </div>
         </div>

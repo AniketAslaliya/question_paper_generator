@@ -16,11 +16,17 @@ const generatePaper = async ({
   previousVersions = [],
   referenceQuestions = [],
   importantTopics = '',
-  cifData = null
+  cifData = null,
+  duration = '3 Hours'
 }) => {
   const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-  const sectionsInfo = sections ? sections.map(s => `${s.name}: ${s.questionCount} questions, ${s.marks} marks, Type: ${s.questionType || 'Mixed'}`).join('; ') : '';
+  const sectionsInfo = sections ? sections.map(s => {
+    const typeNote = s.questionType === 'Mixed' 
+      ? 'Type: Mixed (can use any question type)' 
+      : `REQUIRED TYPE: ${s.questionType} (ALL ${s.questionCount} questions in this section MUST be ${s.questionType} type)`;
+    return `${s.name}: ${s.questionCount} questions, ${s.marks} marks, ${typeNote}`;
+  }).join('; ') : '';
   const bloomsInfo = bloomsTaxonomy ? Object.entries(bloomsTaxonomy).map(([level, percent]) => `${level}: ${percent}%`).join(', ') : 'Not specified';
 
   const previousQuestionsContext = previousVersions.length > 0
@@ -48,7 +54,7 @@ CRITICAL INSTRUCTIONS:
 4. Include mandatory exercises EXACTLY as specified
 5. Prioritize important topics mentioned
 6. Use reference questions as style guides
-7. STRICTLY FOLLOW the question type specified for each section
+7. STRICTLY FOLLOW the question type specified for each section - if a section is marked as "Multiple Choice", ALL questions in that section MUST be multiple choice. If marked as "Theoretical", ALL must be theoretical. Do NOT mix types within a section unless the type is explicitly "Mixed".
 ${previousQuestionsContext}
 ${referenceContext}
 ${importantTopicsContext}
@@ -80,7 +86,7 @@ Return a JSON object with this EXACT structure:
   "subjectName": "${cifData?.subjectName || 'Subject Name'}",
   "instructions": "General instructions for students",
   "totalMarks": ${templateConfig.marks},
-  "duration": "3 Hours",
+  "duration": "${duration || templateConfig.duration || '3 Hours'}",
   "sections": [
     {
       "name": "Section A",
@@ -384,27 +390,35 @@ const enhanceAnswerKeyStyling = (jsonData) => {
 };
 
 const generateFallbackStructure = (sections, questionTypes, generateAnswerKey, cifData) => {
+  // Default sections if none provided
+  const defaultSections = sections && Array.isArray(sections) && sections.length > 0 
+    ? sections 
+    : [
+        { name: 'Section A', marks: 50, questionCount: 5, questionType: 'Theoretical' },
+        { name: 'Section B', marks: 50, questionCount: 5, questionType: 'Theoretical' }
+      ];
+
   const fallbackData = {
     json: {
       title: "Generated Question Paper",
       subjectName: cifData?.subjectName || "Subject Name",
       instructions: "Answer all questions. All questions carry equal marks unless specified.",
-      totalMarks: 100,
+      totalMarks: defaultSections.reduce((sum, s) => sum + (s.marks || 0), 0) || 100,
       duration: "3 Hours",
-      sections: sections ? sections.map((s, idx) => ({
-        name: s.name,
+      sections: defaultSections.map((s, idx) => ({
+        name: s.name || `Section ${String.fromCharCode(65 + idx)}`,
         instructions: "Answer all questions from this section",
-        questions: Array.from({ length: s.questionCount }, (_, i) => ({
+        questions: Array.from({ length: s.questionCount || 5 }, (_, i) => ({
           id: i + 1,
-          text: `Question ${i + 1} for ${s.name} - Based on the reference material provided`,
-          marks: Math.floor(s.marks / s.questionCount),
+          text: `Question ${i + 1} for ${s.name || 'Section'} - Based on the reference material provided`,
+          marks: s.questionCount > 0 ? Math.floor((s.marks || 0) / s.questionCount) : 10,
           type: s.questionType || 'Theoretical',
           difficulty: i % 3 === 0 ? 'Easy' : i % 3 === 1 ? 'Medium' : 'Hard',
           bloomLevel: 'Understand',
           chapter: 'General',
           answer: generateAnswerKey ? 'Sample answer based on course content' : null
         }))
-      })) : []
+      }))
     }
   };
 
