@@ -53,6 +53,11 @@ const CreatePaperPage = () => {
 
     const [generatedContent, setGeneratedContent] = useState('');
     const [loading, setLoading] = useState(false);
+    const [generationStatus, setGenerationStatus] = useState({ status: 'pending', progress: 0 });
+    const [importantQuestions, setImportantQuestions] = useState([]);
+    const [suggestedQuestions, setSuggestedQuestions] = useState([]);
+    const [showSuggestions, setShowSuggestions] = useState(false);
+    const [loadingSuggestions, setLoadingSuggestions] = useState(false);
 
     const handleUploadComplete = (data) => {
         setPaperId(data.paperId);
@@ -72,8 +77,125 @@ const CreatePaperPage = () => {
         }
     };
 
+    // Poll generation status
+    useEffect(() => {
+        let intervalId = null;
+        if (generationStatus.status === 'generating' && paperId) {
+            intervalId = setInterval(async () => {
+                try {
+                    const token = localStorage.getItem('token');
+                    const res = await axios.get(`${API_URL}/api/papers/${paperId}/generation-status`, {
+                        headers: { Authorization: `Bearer ${token}` }
+                    });
+                    const status = res.data.generationStatus;
+                    setGenerationStatus(status);
+                    
+                    if (status.status === 'completed' || status.status === 'failed') {
+                        clearInterval(intervalId);
+                        if (status.status === 'completed') {
+                            // Fetch the generated paper
+                            const paperRes = await axios.get(`${API_URL}/api/papers/${paperId}`, {
+                                headers: { Authorization: `Bearer ${token}` }
+                            });
+                            const paper = paperRes.data;
+                            if (paper.versions && paper.versions.length > 0) {
+                                const latestVersion = paper.versions[paper.versions.length - 1];
+                                setGeneratedContent(latestVersion.generatedContentHTML || '');
+                                setStep(4);
+                            }
+                        }
+                        setLoading(false);
+                    }
+                } catch (err) {
+                    console.error('Error polling status:', err);
+                }
+            }, 2000); // Poll every 2 seconds
+        }
+        return () => {
+            if (intervalId) clearInterval(intervalId);
+        };
+    }, [generationStatus.status, paperId]);
+
+    // Load important questions when paperId is available
+    useEffect(() => {
+        if (paperId && step >= 3) {
+            loadImportantQuestions();
+        }
+    }, [paperId, step]);
+
+    const loadImportantQuestions = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const res = await axios.get(`${API_URL}/api/papers/${paperId}/important-questions`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setImportantQuestions(res.data.importantQuestions || []);
+        } catch (err) {
+            console.error('Error loading important questions:', err);
+        }
+    };
+
+    const handleSuggestQuestions = async () => {
+        if (!paperId) {
+            alert('Please upload files first');
+            return;
+        }
+        setLoadingSuggestions(true);
+        try {
+            const token = localStorage.getItem('token');
+            const res = await axios.post(`${API_URL}/api/papers/${paperId}/suggest-questions`, {}, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setSuggestedQuestions(res.data.suggestions || []);
+            setShowSuggestions(true);
+        } catch (err) {
+            console.error('Error getting suggestions:', err);
+            alert('Failed to generate suggestions. Please try again.');
+        } finally {
+            setLoadingSuggestions(false);
+        }
+    };
+
+    const handleAddImportantQuestion = async (question, questionType = 'Important', notes = '') => {
+        try {
+            const token = localStorage.getItem('token');
+            await axios.post(`${API_URL}/api/papers/${paperId}/important-questions`, {
+                question,
+                questionType,
+                notes
+            }, { headers: { Authorization: `Bearer ${token}` } });
+            await loadImportantQuestions();
+            alert('Question added successfully!');
+        } catch (err) {
+            console.error('Error adding question:', err);
+            alert('Failed to add question. Please try again.');
+        }
+    };
+
+    const handleAddSuggestedQuestion = (suggestion) => {
+        handleAddImportantQuestion(
+            suggestion.question,
+            suggestion.questionType || 'Important',
+            `Topic: ${suggestion.topic || 'General'}, Difficulty: ${suggestion.difficulty || 'Medium'}, Bloom: ${suggestion.bloomLevel || 'Understand'}. ${suggestion.reason || ''}`
+        );
+    };
+
+    const handleDeleteImportantQuestion = async (questionId) => {
+        try {
+            const token = localStorage.getItem('token');
+            await axios.delete(`${API_URL}/api/papers/${paperId}/important-questions/${questionId}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            await loadImportantQuestions();
+        } catch (err) {
+            console.error('Error deleting question:', err);
+            alert('Failed to delete question. Please try again.');
+        }
+    };
+
     const handleGenerate = async () => {
         setLoading(true);
+        setGenerationStatus({ status: 'generating', progress: 0 });
         try {
             const token = localStorage.getItem('token');
 
@@ -83,22 +205,23 @@ const CreatePaperPage = () => {
                     config: { ...config, cifData }
                 }, { headers: { Authorization: `Bearer ${token}` } });
 
-                const res = await axios.post(`${API_URL}/api/papers/create-phase3`, {
+                // Start generation (will be polled for status)
+                await axios.post(`${API_URL}/api/papers/create-phase3`, {
                     paperId
                 }, { headers: { Authorization: `Bearer ${token}` } });
 
-                setGeneratedContent(res.data.generatedData.html || '<h1>Generated Paper</h1><p>Content here...</p>');
-                setStep(4);
+                // Status will be updated via polling
             } else if (step === 4) {
                 const res = await axios.post(`${API_URL}/api/papers/${paperId}/regenerate`, {}, {
                     headers: { Authorization: `Bearer ${token}` }
                 });
                 setGeneratedContent(res.data.generatedData.html || '<h1>Generated Paper</h1><p>Content here...</p>');
+                setGenerationStatus({ status: 'completed', progress: 100 });
             }
         } catch (err) {
             console.error(err);
+            setGenerationStatus({ status: 'failed', progress: 0, error: err.message });
             alert('Generation failed. Please try again.');
-        } finally {
             setLoading(false);
         }
     };

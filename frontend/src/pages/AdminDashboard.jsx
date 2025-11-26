@@ -19,17 +19,20 @@ const AdminDashboard = () => {
                 const token = localStorage.getItem('token');
                 const headers = { Authorization: `Bearer ${token}` };
 
-                const [statsRes, usersRes, logsRes, papersRes] = await Promise.all([
+                const [statsRes, usersRes, logsRes, papersRes, importantQuestionsRes] = await Promise.all([
                     api.get('/api/admin/stats', { headers }),
                     api.get('/api/admin/users?page=1&limit=20', { headers }),
                     api.get('/api/admin/logs?page=1&limit=50', { headers }),
-                    api.get('/api/admin/papers?page=1&limit=20', { headers })
+                    api.get('/api/admin/papers?page=1&limit=20', { headers }),
+                    api.get('/api/admin/important-questions?page=1&limit=50', { headers }).catch(() => ({ data: { questions: [], stats: null } }))
                 ]);
 
                 setStats(statsRes.data);
                 setUsers(usersRes.data.users || usersRes.data);
                 setLogs(logsRes.data.logs || logsRes.data);
                 setPapers(papersRes.data.papers || papersRes.data);
+                setImportantQuestions(importantQuestionsRes.data.questions || []);
+                setImportantQuestionsStats(importantQuestionsRes.data.stats || null);
             } catch (err) {
                 console.error(err);
             }

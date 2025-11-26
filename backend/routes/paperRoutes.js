@@ -687,6 +687,38 @@ router.get('/:id/export/answer-key', auth, async (req, res) => {
     }
 });
 
+// Suggest Important Questions
+router.post('/:id/suggest-questions', auth, async (req, res) => {
+    try {
+        const paper = await Paper.findById(req.params.id);
+        if (!paper) return res.status(404).json({ message: 'Paper not found' });
+        if (paper.userId.toString() !== req.user.id) return res.status(401).json({ message: 'Unauthorized' });
+
+        // Combine all text chunks
+        const extractedText = paper.extractedData.textChunks 
+            ? paper.extractedData.textChunks.join('\n\n---\n\n')
+            : (paper.extractedData.fullText || '');
+
+        if (!extractedText || extractedText.trim().length < 100) {
+            return res.status(400).json({ 
+                message: 'Insufficient content. Please upload reference materials first.' 
+            });
+        }
+
+        const { suggestImportantQuestions } = require('../services/questionSuggestionService');
+        const subjectName = paper.config.cifData?.subjectName || paper.subject || null;
+        const result = await suggestImportantQuestions(extractedText, subjectName);
+
+        res.json(result);
+    } catch (err) {
+        console.error('Question suggestion error:', err);
+        res.status(500).json({ 
+            message: 'Failed to generate suggestions', 
+            error: process.env.NODE_ENV === 'development' ? err.message : undefined 
+        });
+    }
+});
+
 // CIF Parsing Route
 router.post('/parse-cif', auth, upload.single('cif'), async (req, res) => {
     try {
