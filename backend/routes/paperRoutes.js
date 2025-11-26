@@ -246,14 +246,32 @@ router.post('/create-phase3', auth, async (req, res) => {
             return res.status(400).json({ message: 'No text content found. Please upload files first.' });
         }
         
+        // Combine all text chunks for better context
+        const extractedText = paper.extractedData.textChunks 
+            ? paper.extractedData.textChunks.join('\n\n---\n\n')
+            : (paper.extractedData.fullText || '');
+
+        if (!extractedText || extractedText.trim().length < 100) {
+            return res.status(400).json({ 
+                message: 'Insufficient content extracted from files. Please upload files with readable text content.' 
+            });
+        }
+
+        console.log('📄 Generating paper with:', {
+            paperId: paper.id,
+            textLength: extractedText.length,
+            sections: paper.config.sections?.length || 0,
+            totalMarks: paper.config.marks
+        });
+
         const generatedData = await generatePaper({
-            extractedText: paper.extractedData.textChunks[0] || '',
+            extractedText: extractedText,
             templateConfig: paper.config,
-            difficulty: paper.config.difficulty,
-            weightage: paper.config.weightage,
+            difficulty: paper.config.difficulty || { easy: 30, medium: 50, hard: 20 },
+            weightage: paper.config.weightage || {},
             questionTypes: paper.config.questionTypes,
             sections: paper.config.sections,
-            bloomsTaxonomy: paper.config.bloomsTaxonomy,
+            bloomsTaxonomy: paper.config.bloomsTaxonomy || {},
             mandatoryList: paper.config.mandatoryExercises || [],
             generateAnswerKey: paper.config.generateAnswerKey || false,
             setsRequired: paper.config.setsGenerated,
@@ -301,14 +319,32 @@ router.post('/:id/regenerate', auth, async (req, res) => {
             return res.status(400).json({ message: 'No text content found. Please upload files first.' });
         }
 
+        // Combine all text chunks for better context
+        const extractedText = paper.extractedData.textChunks 
+            ? paper.extractedData.textChunks.join('\n\n---\n\n')
+            : (paper.extractedData.fullText || '');
+
+        if (!extractedText || extractedText.trim().length < 100) {
+            return res.status(400).json({ 
+                message: 'Insufficient content extracted from files. Please upload files with readable text content.' 
+            });
+        }
+
+        console.log('🔄 Regenerating paper with:', {
+            paperId: paper.id,
+            textLength: extractedText.length,
+            sections: paper.config.sections?.length || 0,
+            previousVersions: paper.versions?.length || 0
+        });
+
         const generatedData = await generatePaper({
-            extractedText: paper.extractedData.textChunks[0] || '',
+            extractedText: extractedText,
             templateConfig: paper.config,
-            difficulty: paper.config.difficulty,
-            weightage: paper.config.weightage,
+            difficulty: paper.config.difficulty || { easy: 30, medium: 50, hard: 20 },
+            weightage: paper.config.weightage || {},
             questionTypes: paper.config.questionTypes,
             sections: paper.config.sections,
-            bloomsTaxonomy: paper.config.bloomsTaxonomy,
+            bloomsTaxonomy: paper.config.bloomsTaxonomy || {},
             mandatoryList: paper.config.mandatoryExercises || [],
             generateAnswerKey: paper.config.generateAnswerKey || false,
             setsRequired: paper.config.setsGenerated,
