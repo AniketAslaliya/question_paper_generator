@@ -67,50 +67,59 @@ const generatePaper = async ({
     ? `\n\nCHAPTER/TOPIC WEIGHTAGE (DISTRIBUTE QUESTIONS ACCORDINGLY):\n${Object.entries(weightage).map(([chapter, weight]) => `- ${chapter}: ${weight}%`).join('\n')}`
     : '';
 
-  const prompt = `You are an expert academic question paper generator with deep knowledge of pedagogy and assessment design.
+  // Build a more detailed prompt with examples
+  const exampleQuestions = textToUse.length > 500 ? `
+EXAMPLE OF GOOD QUESTIONS (based on similar content):
+- "Explain the working principle of amplitude modulation (AM) and derive the mathematical expression for an AM wave. Discuss the modulation index and its significance in communication systems."
+- "A carrier wave of frequency 1 MHz and amplitude 5V is modulated by a signal of frequency 5 kHz and amplitude 2V. Calculate the modulation index and the sideband frequencies. Draw the frequency spectrum."
+- "Compare and contrast TDMA and FDMA multiple access techniques in wireless communication. Explain the advantages and disadvantages of each with suitable examples."
 
-CRITICAL INSTRUCTIONS - READ CAREFULLY:
-1. You MUST generate REAL, SPECIFIC questions based on the provided subject content. DO NOT use placeholder text like "Question 1 for Section A - Based on the reference material provided"
-2. Each question MUST be unique, detailed, and directly related to the course content provided
-3. Questions must test actual understanding of the subject matter, not generic placeholders
-4. Match the exact difficulty distribution: Easy ${difficulty.easy}%, Medium ${difficulty.medium}%, Hard ${difficulty.hard}%
-5. Match the exact Bloom's taxonomy distribution: ${bloomsInfo}
-6. Include mandatory exercises EXACTLY as specified: ${mandatoryList.length > 0 ? JSON.stringify(mandatoryList) : 'None'}
-7. STRICTLY FOLLOW the question type specified for each section:
-   ${sectionsInfo}
-   - If a section is marked as "Multiple Choice", ALL questions in that section MUST be multiple choice with 4 options (a, b, c, d)
-   - If marked as "Theoretical", ALL must be theoretical/descriptive questions
-   - If marked as "Numerical", ALL must be numerical problems with calculations
-   - Do NOT mix types within a section unless the type is explicitly "Mixed"
-8. Distribute questions across topics/chapters based on weightage provided
-${previousQuestionsContext}
-${referenceContext}
-${importantTopicsContext}
-${cifContext}
-${weightageInfo}
+EXAMPLE OF BAD QUESTIONS (DO NOT GENERATE THESE):
+- "Question 1 for Section A - Based on the reference material provided"
+- "Write about the topic mentioned in the syllabus"
+- "Explain the concept discussed in the course material"
 
-SUBJECT CONTENT (Reference Material) - USE THIS TO CREATE ACTUAL QUESTIONS:
-${textToUse}
+` : '';
 
-PAPER CONFIGURATION - STRICTLY FOLLOW:
+  const prompt = `You are an expert academic question paper generator. Your task is to create REAL, SPECIFIC examination questions based on the provided course content.
+
+🚫 ABSOLUTELY FORBIDDEN - DO NOT GENERATE:
+- Placeholder text like "Question 1 for Section A - Based on the reference material provided"
+- Generic questions like "Explain the topic" or "Write about the concept"
+- Questions that don't reference specific content from the material
+- Questions shorter than 15 words
+
+✅ YOU MUST GENERATE:
+- Real, detailed questions that test understanding of specific concepts from the content
+- Questions that reference actual topics, theories, formulas, or examples from the material
+- Each question should be 20-50 words and ask for specific information
+- Questions that can be answered using ONLY the provided content
+
+${exampleQuestions}
+
+COURSE CONTENT (Analyze this carefully and create questions from it):
+${textToUse.substring(0, 40000)}
+
+PAPER REQUIREMENTS:
 - Total Marks: ${templateConfig.marks}
 - Duration: ${duration || templateConfig.duration || '3 Hours'}
 - Sections: ${sectionsInfo}
-- Difficulty: Easy ${difficulty.easy}%, Medium ${difficulty.medium}%, Hard ${difficulty.hard}%
+- Difficulty Distribution: Easy ${difficulty.easy}%, Medium ${difficulty.medium}%, Hard ${difficulty.hard}%
 - Bloom's Taxonomy: ${bloomsInfo}
-- Generate Answer Key: ${generateAnswerKey ? 'YES - Include detailed answers' : 'NO'}
+${mandatoryList.length > 0 ? `- Mandatory Exercises: ${JSON.stringify(mandatoryList)}` : ''}
+${weightageInfo}
+${cifContext}
+${importantTopicsContext}
+${referenceContext ? `\nReference Questions (use as style guide):\n${referenceContext}` : ''}
+${previousQuestionsContext}
 
-QUALITY REQUIREMENTS:
-1. Questions must be academically rigorous and test conceptual understanding
-2. Use proper academic language and terminology from the subject content
-3. Questions must be answerable based on the provided content
-4. For Multiple Choice: Provide 4 options (a, b, c, d) with one correct answer
-5. For Numerical: Provide clear problem statements with all necessary data
-6. For Theoretical: Ask for explanations, comparisons, or analyses, not just definitions
-7. Each question should be 2-4 sentences long, not just one line
-8. Questions should reference specific concepts, theories, or topics from the content
+QUESTION TYPE REQUIREMENTS:
+${sectionsInfo.split('; ').map(s => `- ${s}`).join('\n')}
+- For Multiple Choice: Include 4 options (a, b, c, d) in the question text
+- For Numerical: Include all necessary values and ask for calculations
+- For Theoretical: Ask for explanations, comparisons, derivations, or analyses
 
-OUTPUT FORMAT - RETURN VALID JSON ONLY:
+OUTPUT FORMAT - Return ONLY valid JSON (no markdown, no code blocks):
 {
   "title": "${cifData?.subjectName || templateConfig.templateName || 'Question Paper'}",
   "subjectName": "${cifData?.subjectName || 'Subject Name'}",
@@ -124,25 +133,20 @@ OUTPUT FORMAT - RETURN VALID JSON ONLY:
       "questions": [
         {
           "id": 1,
-          "text": "Write a detailed, specific question here based on the subject content. Make it 2-4 sentences. DO NOT use placeholder text.",
+          "text": "A REAL, SPECIFIC question about a concept from the content. Minimum 20 words. Reference actual topics, formulas, or examples.",
           "marks": 10,
           "type": "Theoretical",
           "difficulty": "Medium",
           "bloomLevel": "Understand",
-          "chapter": "Chapter 1",
-          "answer": ${generateAnswerKey ? '"Provide a detailed answer with explanation here"' : 'null'}
+          "chapter": "Chapter name from content",
+          "answer": ${generateAnswerKey ? '"Detailed answer referencing specific content"' : 'null'}
         }
       ]
     }
   ]
 }
 
-CRITICAL: 
-- Generate REAL questions, not placeholders
-- Use actual content from the subject material
-- Ensure JSON is valid and properly formatted
-- All strings must use double quotes
-- Do not include markdown code blocks in the JSON`;
+FINAL REMINDER: Every question text must be a REAL question that references specific content. If you generate placeholders, the paper will be rejected.`;
 
   try {
     console.log('🤖 Calling Gemini API for paper generation...');
@@ -177,35 +181,96 @@ CRITICAL:
         throw new Error('Invalid structure: No sections found in AI response');
       }
 
-      // Check if questions are placeholders
+      // Validate questions are real, not placeholders
+      const placeholderPatterns = [
+        /question\s+\d+\s+for\s+section/i,
+        /based\s+on\s+the\s+reference\s+material\s+provided/i,
+        /based\s+on\s+the\s+provided\s+material/i,
+        /explain\s+the\s+topic/i,
+        /write\s+about\s+the\s+concept/i,
+        /question\s+text\s+here/i,
+        /placeholder/i
+      ];
+
       const hasPlaceholders = parsed.sections.some(section => 
-        section.questions?.some(q => 
-          q.text?.toLowerCase().includes('question') && 
-          q.text?.toLowerCase().includes('based on the reference material provided')
-        )
+        section.questions?.some(q => {
+          const text = (q.text || '').toLowerCase();
+          return placeholderPatterns.some(pattern => pattern.test(text)) || text.length < 20;
+        })
       );
 
       if (hasPlaceholders) {
-        console.warn('⚠️ AI generated placeholder questions. Regenerating with stricter prompt...');
-        // Try once more with even more explicit instructions
-        const retryPrompt = prompt + '\n\nCRITICAL REMINDER: Generate REAL, SPECIFIC questions. DO NOT use placeholder text like "Question X for Section Y - Based on the reference material provided". Each question must be a complete, detailed question about the subject matter.';
-        const retryResult = await model.generateContent(retryPrompt);
-        const retryResponse = await retryResult.response;
-        const retryText = retryResponse.text();
-        let retryCleanText = retryText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-        const retryJsonMatch = retryCleanText.match(/\{[\s\S]*\}/);
-        if (retryJsonMatch) {
-          retryCleanText = retryJsonMatch[0];
+        console.warn('⚠️ AI generated placeholder questions. Regenerating with much stricter prompt...');
+        console.warn('📝 Sample problematic question:', parsed.sections[0]?.questions?.[0]?.text?.substring(0, 100));
+        
+        // Create a much more explicit retry prompt
+        const retryPrompt = `You FAILED to generate real questions. You generated placeholders like "Question 1 for Section A - Based on the reference material provided". 
+
+THIS IS UNACCEPTABLE. You MUST generate REAL questions.
+
+STRICT REQUIREMENTS:
+1. Each question MUST be 20-50 words
+2. Each question MUST reference a specific concept, formula, theory, or example from this content:
+${textToUse.substring(0, 20000)}
+
+3. Example of GOOD question: "Explain the working principle of amplitude modulation and derive the mathematical expression for an AM wave. Discuss how the modulation index affects the transmitted signal power."
+
+4. Example of BAD question: "Question 1 for Section A - Based on the reference material provided" (THIS IS FORBIDDEN)
+
+Generate questions NOW following the exact same JSON structure but with REAL questions. Each question text must be a complete, specific question about the content provided.`;
+
+        try {
+          const retryResult = await model.generateContent(retryPrompt);
+          const retryResponse = await retryResult.response;
+          const retryText = retryResponse.text();
+          let retryCleanText = retryText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+          const retryJsonMatch = retryCleanText.match(/\{[\s\S]*\}/);
+          if (retryJsonMatch) {
+            retryCleanText = retryJsonMatch[0];
+          }
+          const retryParsed = JSON.parse(retryCleanText);
+          
+          // Validate retry also
+          const retryHasPlaceholders = retryParsed.sections?.some(section => 
+            section.questions?.some(q => {
+              const text = (q.text || '').toLowerCase();
+              return placeholderPatterns.some(pattern => pattern.test(text)) || text.length < 20;
+            })
+          );
+
+          if (!retryHasPlaceholders && retryParsed.sections && retryParsed.sections.length > 0) {
+            console.log('✅ Retry successful - real questions generated');
+            parsed.sections = retryParsed.sections;
+            parsed.title = retryParsed.title || parsed.title;
+            parsed.subjectName = retryParsed.subjectName || parsed.subjectName;
+          } else {
+            console.error('❌ Retry also failed - still has placeholders');
+            throw new Error('AI generated placeholder questions even after retry. Please check the uploaded content and try again.');
+          }
+        } catch (retryError) {
+          console.error('❌ Retry generation failed:', retryError.message);
+          throw new Error('Failed to generate real questions. Please ensure your uploaded content has sufficient detail and try again.');
         }
-        const retryParsed = JSON.parse(retryCleanText);
-        parsed.sections = retryParsed.sections;
-        parsed.title = retryParsed.title || parsed.title;
-        parsed.subjectName = retryParsed.subjectName || parsed.subjectName;
+      }
+
+      // Final validation - check question quality
+      const totalQuestions = parsed.sections.reduce((sum, s) => sum + (s.questions?.length || 0), 0);
+      const shortQuestions = parsed.sections.some(section => 
+        section.questions?.some(q => (q.text || '').trim().length < 20)
+      );
+
+      if (shortQuestions) {
+        console.warn('⚠️ Some questions are too short. Minimum length should be 20 characters.');
       }
 
       console.log('✅ Successfully parsed JSON structure');
       console.log('📋 Sections generated:', parsed.sections.length);
-      console.log('📝 Total questions:', parsed.sections.reduce((sum, s) => sum + (s.questions?.length || 0), 0));
+      console.log('📝 Total questions:', totalQuestions);
+      
+      // Log sample questions for debugging
+      if (parsed.sections[0]?.questions?.[0]) {
+        console.log('📝 Sample question:', parsed.sections[0].questions[0].text?.substring(0, 100));
+      }
 
       // Generate separate HTMLs
       const html = enhanceHTMLStyling(parsed);
