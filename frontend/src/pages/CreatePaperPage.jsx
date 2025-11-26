@@ -533,7 +533,7 @@ const CreatePaperPage = () => {
                             </section>
 
                             <section>
-                                <h3 className="section-title">7. Mandatory Exercises</h3>
+                                <h3 className="section-title">8. Mandatory Exercises</h3>
                                 <ExerciseSelector
                                     exercises={detectedExercises}
                                     onUpdate={(exercises) => setConfig({ ...config, mandatoryExercises: exercises })}

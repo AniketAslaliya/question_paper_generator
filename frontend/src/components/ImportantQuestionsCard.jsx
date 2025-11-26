@@ -6,6 +6,7 @@ const ImportantQuestionsCard = ({
     onAdd, 
     onDelete,
     onSuggest,
+    onAddSuggested,
     suggestedQuestions = [],
     showSuggestions = false,
     loadingSuggestions = false
@@ -95,7 +96,11 @@ const ImportantQuestionsCard = ({
                                         )}
                                     </div>
                                     <button
-                                        onClick={() => onSuggest && onSuggest(suggestion)}
+                                        onClick={() => {
+                                            if (onAddSuggested) {
+                                                onAddSuggested(suggestion);
+                                            }
+                                        }}
                                         className="flex-shrink-0 p-1.5 bg-green-500 text-white rounded hover:bg-green-600 transition-colors"
                                         title="Add this question"
                                     >
