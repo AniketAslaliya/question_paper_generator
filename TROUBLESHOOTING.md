@@ -127,3 +127,4 @@ VITE_API_URL=https://your-backend-url.com
 4. Test backend endpoints directly with curl/Postman
 5. Check network connectivity between frontend and backend
 
+
