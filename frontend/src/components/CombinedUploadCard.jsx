@@ -36,6 +36,14 @@ const CombinedUploadCard = ({ onUploadComplete, onCIFParsed }) => {
             });
 
             console.log('✅ CIF parsing response:', res.data);
+            console.log('📊 Response details:', {
+                status: res.data.status,
+                totalTopics: res.data.totalTopics,
+                topicsLength: res.data.topics?.length,
+                topicsArray: res.data.topics,
+                message: res.data.message,
+                pdfType: res.data.pdfType
+            });
             
             // Handle response
             if (res.data.status === 'error' || res.data.totalTopics === 0) {
