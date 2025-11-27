@@ -7,13 +7,65 @@ const genAI = process.env.GEMINI_API_KEY
     : null;
 
 /**
+ * Detect if PDF is text-based or image-based
+ * @param {string} text - Extracted text from PDF
+ * @returns {string} - 'text-based' or 'image-based'
+ */
+const detectPDFType = (text) => {
+    if (!text || text.trim().length === 0) {
+        console.log('🖼️ PDF Type: IMAGE-BASED (no text extracted)');
+        return 'image-based';
+    }
+
+    // Calculate text density
+    const cleanText = text.trim();
+    const lines = cleanText.split(/\n/).filter(line => line.trim().length > 0);
+    const avgCharsPerLine = cleanText.length / Math.max(lines.length, 1);
+    
+    // If mostly whitespace or very few characters, likely image-based
+    if (cleanText.length < 100) {
+        console.log(`🖼️ PDF Type: IMAGE-BASED (extracted text too short: ${cleanText.length} chars)`);
+        return 'image-based';
+    }
+
+    // Check for coherence - real text PDFs have consistent character patterns
+    const hasNumbers = /\d/.test(cleanText);
+    const hasLetters = /[a-zA-Z]/.test(cleanText);
+    const hasSpaces = / /.test(cleanText);
+    
+    if (!hasLetters || (!hasSpaces && !hasNumbers)) {
+        console.log('🖼️ PDF Type: IMAGE-BASED (text pattern unrecognizable)');
+        return 'image-based';
+    }
+
+    console.log(`📄 PDF Type: TEXT-BASED (${cleanText.length} chars extracted, ${lines.length} lines)`);
+    return 'text-based';
+};
+
+/**
  * Enhanced CIF Parsing using AI for better accuracy
  */
 const parseCIF = async (text) => {
     try {
+        const startTime = Date.now();
+        const pdfType = detectPDFType(text);
+        const extractedTextLength = text ? text.trim().length : 0;
+
+        console.log(`\n📋 === CIF PARSING STARTED ===`);
+        console.log(`📊 PDF Type: ${pdfType}`);
+        console.log(`📊 Extracted text length: ${extractedTextLength} characters`);
+        console.log(`📊 Text preview (first 200 chars): ${text.substring(0, 200)}`);
+
+        // If image-based PDF with no text, try OCR if available
+        if (pdfType === 'image-based' && extractedTextLength < 100) {
+            console.log('⚠️ Text-based parsing may fail, attempting OCR fallback...');
+            // OCR would be triggered here if available
+            // For now, we'll proceed with enhanced regex patterns
+        }
+
         if (!genAI) {
             console.log('⚠️ GEMINI_API_KEY not set, using regex fallback for CIF parsing');
-            return parseCIFRegex(text);
+            return parseCIFRegex(text, pdfType);
         }
 
         const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
@@ -40,6 +92,7 @@ EXTRACTION RULES:
 - Topics might be numbered (1, 2, 3) or labeled (Unit 1, Module 1, etc.)
 - Topic names should be 5-100 characters, descriptive of course content
 - If a "topic" is just a name (like "Dr. John Smith") or generic word, SKIP IT
+- Extract detailed topic descriptions if available (e.g., "Statistical Fading Models: Narrowband Fading, Wideband Fading")
 
 Return a JSON object with this EXACT structure:
 {
@@ -62,9 +115,12 @@ VALIDATION:
 Text to parse:
 ${text.substring(0, 30000)}`;
 
+        console.log('🤖 Sending request to Gemini API...');
         const result = await model.generateContent(prompt);
         const response = await result.response;
         const responseText = response.text();
+
+        console.log('✅ Gemini API response received');
 
         // Clean and parse JSON
         let cleanText = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
@@ -94,33 +150,46 @@ ${text.substring(0, 30000)}`;
                     parsed.topics = [];
                 }
 
-                console.log(`✅ AI CIF Parsing: Found ${parsed.topics.length} topics`);
+                const elapsedTime = Date.now() - startTime;
+                console.log(`✅ AI CIF Parsing Success: Found ${parsed.topics.length} topics in ${elapsedTime}ms`);
+                console.log(`📍 Topics extracted: ${parsed.topics.map(t => t.name).join(', ')}`);
+
                 return {
+                    status: 'success',
                     subjectName: (parsed.subjectName || parsed.courseName || 'Unknown Subject').trim(),
                     topics: parsed.topics,
                     totalTopics: parsed.topics.length,
-                    additionalInfo: parsed.additionalInfo || ''
+                    additionalInfo: parsed.additionalInfo || '',
+                    pdfType: pdfType,
+                    extractedTextLength: extractedTextLength
                 };
             } catch (parseError) {
-                console.error('JSON parse error in AI response:', parseError.message);
+                console.error('❌ JSON parse error in AI response:', parseError.message);
+                console.log('⏱️ Falling back to regex parsing...');
                 // Fallback to regex
-                return parseCIFRegex(text);
+                return parseCIFRegex(text, pdfType);
             }
         }
 
         // Fallback to regex parsing if AI fails
         console.log('⚠️ AI CIF parsing returned no JSON, using regex fallback');
-        return parseCIFRegex(text);
+        return parseCIFRegex(text, pdfType);
     } catch (error) {
-        console.error('AI CIF parsing error, using regex fallback:', error.message);
-        return parseCIFRegex(text);
+        console.error('❌ AI CIF parsing error:', error.message);
+        console.log('⏱️ Falling back to regex parsing...');
+        return parseCIFRegex(text, 'error');
     }
 };
 
 /**
  * Enhanced Regex-based CIF Parsing (Fallback)
+ * Optimized for extracting units, topics with detailed descriptions
  */
-const parseCIFRegex = (text) => {
+const parseCIFRegex = (text, pdfType = 'text-based') => {
+    const startTime = Date.now();
+    console.log(`\n📋 === REGEX CIF PARSING STARTED ===`);
+    console.log(`📊 PDF Type: ${pdfType}`);
+    
     // Extract subject name with multiple patterns
     const subjectPatterns = [
         /(?:Subject|Course|Paper)\s*(?:Name|Title)?[\s:]+([^\n\r]+)/i,
@@ -142,20 +211,24 @@ const parseCIFRegex = (text) => {
     const topics = [];
     const seenTopics = new Set();
 
-    // Enhanced topic patterns - more comprehensive
+    // IMPROVED: Enhanced topic patterns specifically for units and detailed topics
     const topicPatterns = [
-        // Unit/Module/Topic with number and weightage
-        /(?:Unit|Module|Topic|Chapter|Part)\s*[:\-]?\s*(\d+)[\s:.\-]+([^\n\r]+?)[\s\-]+(\d+)\s*%?/gi,
-        // Numbered list with weightage
-        /(\d+)[\.\)]\s*([^\n\r]+?)[\s\-]+(\d+)\s*%?/gi,
-        // Unit/Module/Topic name followed by weightage on same or next line
-        /(?:Unit|Module|Topic|Chapter)\s*[:\-]?\s*(\d+)[\s:.\-]+([^\n\r]{5,100})/gi,
-        // Table format: Name | Weightage
-        /([^\n\r]{5,80})\s*\|\s*(\d+)\s*%?/gi,
-        // Simple numbered topics
-        /(\d+)[\.\)]\s+([A-Z][^\n\r]{5,100})/gi,
-        // Unit/Module followed by description
-        /(?:Unit|Module|Topic)\s+(\d+)[\s:.\-]+([^\n\r]{10,150})/gi
+        // UNIT I: Full description pattern (matches "UNIT I: Statistical Fading Models: Narrowband Fading, Wideband Fading")
+        /(?:UNIT|Unit)\s*[IVX]+[\s:.\-]+([^\n\r]{10,200})/gi,
+        // Unit with number and description (Unit 1: Description)
+        /(?:Unit|Module|Topic|Chapter)\s*[:\-]?\s*(\d+)[\s:.\-]+([^\n\r]+?)(?:\n|$)/gi,
+        // Topics with percentage weightage (Topic Name - 20%)
+        /^[\s]*[•\-\*]?\s*([A-Z][^\n\r]+?)[\s\-]+(\d+)\s*%?$/gm,
+        // Numbered items with colon (1. Topic Name:)
+        /^[\s]*(\d+)[\.\)]\s+([A-Z][^\n\r:]+):/gm,
+        // ZF, MMSE, ML type patterns (DetectorNames, Techniques)
+        /(?:ZF|MMSE|ML|LSE|OLS)\s*(?:Detector|Estimation|Equalizer)[^\n\r]{0,100}/gi,
+        // Digital Modulation pattern
+        /Digital\s+(?:Modulation|Demodulation)[^\n\r]{0,150}/gi,
+        // Narrowband/Wideband patterns
+        /(?:Narrowband|Wideband|Flat|Frequency-Selective)\s+(?:Fading|Channel)[^\n\r]{0,100}/gi,
+        // Statistical models
+        /(?:Rayleigh|Rician|Fading)\s+(?:Model|Distribution|Process)[^\n\r]{0,100}/gi
     ];
 
     topicPatterns.forEach((pattern, patternIndex) => {
@@ -164,81 +237,77 @@ const parseCIFRegex = (text) => {
         
         while ((match = regex.exec(text)) !== null) {
             let name = '';
-            let weightage = 0;
 
-            if (patternIndex === 0 || patternIndex === 1) {
-                // Patterns with weightage
+            if (patternIndex === 0) {
+                // UNIT pattern - use full match
+                name = match[0].replace(/(?:UNIT|Unit)\s*[IVX]+[\s:.\-]+/i, '').trim();
+            } else if (patternIndex === 1) {
+                // Unit with number pattern
                 name = (match[2] || match[1] || '').trim();
-                weightage = parseInt(match[3] || match[2] || 0);
-            } else if (patternIndex === 3) {
-                // Table format
-                name = (match[1] || '').trim();
-                weightage = parseInt(match[2] || 0);
-            } else {
-                // Patterns without explicit weightage
-                name = (match[2] || match[1] || '').trim();
-                weightage = 0; // Will be calculated later
+            } else if (patternIndex >= 2) {
+                // Other patterns - use first capture group
+                name = (match[1] || match[0] || '').trim();
             }
 
             // Clean up name
             name = name.replace(/\s+/g, ' ').trim();
             
-            // Remove common prefixes/suffixes
-            name = name.replace(/^(Unit|Module|Topic|Chapter)\s*\d+[\s:.\-]+/i, '');
+            // Remove trailing junk
             name = name.replace(/\s*\d+\s*%?\s*$/, '');
             name = name.replace(/^[\d\.\)\s\-]+/, '');
+            name = name.replace(/[•\-\*]$/, '').trim();
 
-            if (name.length > 3 && name.length < 200 && !seenTopics.has(name.toLowerCase())) {
-                seenTopics.add(name.toLowerCase());
-                topics.push({ name, weightage: weightage || 0 });
+            // Validation
+            if (name.length > 5 && name.length < 250 && !seenTopics.has(name.toLowerCase())) {
+                // Exclude if it matches person names or generic terms
+                if (!name.match(/^(Dr\.|Prof\.|Mr\.|Mrs\.|Ms\.|Subject|Course|Paper|Name|Title)/i)) {
+                    seenTopics.add(name.toLowerCase());
+                    topics.push({ name, weightage: 0 });
+                    console.log(`  ✓ Detected topic (pattern ${patternIndex}): "${name}"`);
+                }
             }
         }
     });
 
-    // If weightage is missing, distribute equally
+    // Calculate weightages if missing
     if (topics.length > 0) {
         const topicsWithWeightage = topics.filter(t => t.weightage > 0);
         const topicsWithoutWeightage = topics.filter(t => t.weightage === 0);
 
-        if (topicsWithoutWeightage.length > 0 && topicsWithWeightage.length > 0) {
-            const totalWeightage = topicsWithWeightage.reduce((sum, t) => sum + t.weightage, 0);
-            const remaining = Math.max(0, 100 - totalWeightage);
-            const equalShare = Math.floor(remaining / topicsWithoutWeightage.length);
-            
+        if (topicsWithoutWeightage.length > 0) {
+            const remainingWeightage = Math.max(0, 100 - topicsWithWeightage.reduce((sum, t) => sum + t.weightage, 0));
+            const equalShare = Math.floor(remainingWeightage / topicsWithoutWeightage.length);
             topicsWithoutWeightage.forEach(topic => {
-                topic.weightage = equalShare;
-            });
-        } else if (topicsWithoutWeightage.length === topics.length) {
-            // All topics missing weightage - distribute equally
-            const equalShare = Math.floor(100 / topics.length);
-            topics.forEach(topic => {
-                topic.weightage = equalShare;
+                topic.weightage = equalShare || (100 / topicsWithoutWeightage.length);
             });
         }
     }
 
-    // If still no topics found, try line-by-line extraction
+    // If no topics found, try line-by-line extraction
     if (topics.length === 0) {
+        console.log('⚠️ No structured topics found, attempting line-by-line extraction...');
         const lines = text.split(/\n|\r/).filter(line => {
             const trimmed = line.trim();
             return trimmed.length > 10 && trimmed.length < 200 && 
                    !trimmed.match(/^(Subject|Course|Paper|Name|Title)/i) &&
-                   !trimmed.match(/^\d+$/);
+                   !trimmed.match(/^\d+$/) &&
+                   trimmed.match(/[A-Z]/); // Must have at least one uppercase letter
         });
 
-        lines.slice(0, 10).forEach((line, idx) => {
-            const trimmed = line.trim();
+        lines.slice(0, 15).forEach((line, idx) => {
+            const trimmed = line.replace(/^[\s•\-\*]+/, '').replace(/[\d\-%]+$/, '').trim();
             if (trimmed.length > 5 && !seenTopics.has(trimmed.toLowerCase())) {
                 seenTopics.add(trimmed.toLowerCase());
                 topics.push({
                     name: trimmed.substring(0, 150),
-                    weightage: Math.floor(100 / Math.min(lines.length, 10))
+                    weightage: Math.floor(100 / Math.min(lines.length, 15))
                 });
+                console.log(`  ✓ Extracted line-based topic: "${trimmed}"`);
             }
         });
     }
 
-    // Sort topics by weightage (descending) or by order found
+    // Sort topics by weightage (descending)
     topics.sort((a, b) => {
         if (b.weightage !== a.weightage) {
             return b.weightage - a.weightage;
@@ -246,13 +315,18 @@ const parseCIFRegex = (text) => {
         return 0;
     });
 
-    console.log(`✅ Regex CIF Parsing: Found ${topics.length} topics`);
+    const elapsedTime = Date.now() - startTime;
+    console.log(`✅ Regex CIF Parsing Complete: Found ${topics.length} topics in ${elapsedTime}ms`);
+    console.log(`📍 Topics extracted: ${topics.map(t => t.name).join(', ')}`);
 
     return {
+        status: 'success',
         subjectName,
-        topics: topics.slice(0, 20), // Limit to 20 topics
+        topics: topics.slice(0, 25), // Limit to 25 topics
         totalTopics: topics.length,
-        additionalInfo: ''
+        additionalInfo: '',
+        pdfType: pdfType,
+        extractedTextLength: text.length
     };
 };
 

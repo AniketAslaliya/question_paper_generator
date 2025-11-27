@@ -25,18 +25,49 @@ const CombinedUploadCard = ({ onUploadComplete, onCIFParsed }) => {
 
         try {
             const token = localStorage.getItem('token');
+            console.log('📤 Uploading CIF file:', file.name);
+            
             const res = await axios.post(`${API_URL}/api/papers/parse-cif`, formData, {
                 headers: {
                     'Content-Type': 'multipart/form-data',
                     Authorization: `Bearer ${token}`
-                }
+                },
+                timeout: 60000 // 60 second timeout
             });
 
-            setCifData(res.data);
+            console.log('✅ CIF parsing response:', res.data);
+            
+            // Handle response
+            if (res.data.status === 'error' || res.data.totalTopics === 0) {
+                console.warn('⚠️ CIF parsing returned no topics:', res.data.message);
+                setCifData({
+                    ...res.data,
+                    totalTopics: 0,
+                    topics: [],
+                    message: res.data.message || 'No topics extracted from PDF'
+                });
+            } else {
+                setCifData(res.data);
+            }
+            
             onCIFParsed(res.data);
         } catch (err) {
-            console.error(err);
-            alert('CIF parsing failed. Please check the file format.');
+            console.error('❌ CIF parsing failed:', err.message);
+            
+            // Check if it's a timeout
+            if (err.code === 'ECONNABORTED') {
+                alert('CIF parsing timed out. The file may be too large or the server is slow. Please try again.');
+            } else if (err.response?.status === 400) {
+                alert(`CIF parsing failed: ${err.response.data?.message || 'Invalid file format'}`);
+            } else if (err.response?.status === 500) {
+                alert(`Server error: ${err.response.data?.message || 'Please try again'}`);
+            } else {
+                alert('CIF parsing failed. Please check the file and try again.');
+            }
+            
+            setCifFile(null);
+            setCifData(null);
+            onCIFParsed(null);
         }
     };
 
@@ -148,11 +179,36 @@ const CombinedUploadCard = ({ onUploadComplete, onCIFParsed }) => {
                         </div>
 
                         {cifData && (
-                            <div className="p-6 bg-dark/5 rounded-lg border-2 border-dark/10 space-y-2">
-                                <p className="text-sm font-bold text-dark"><strong>Subject:</strong> {cifData.subjectName}</p>
-                                <p className="text-sm font-bold text-dark"><strong>Topics Found:</strong> {cifData.totalTopics || cifData.topics?.length || 0}</p>
+                            <div className={`p-6 rounded-lg border-2 space-y-2 ${
+                                cifData.status === 'error' || cifData.totalTopics === 0 
+                                    ? 'bg-yellow-50 border-yellow-200' 
+                                    : 'bg-dark/5 border-dark/10'
+                            }`}>
+                                <p className="text-sm font-bold text-dark">
+                                    <strong>Subject:</strong> {cifData.subjectName}
+                                </p>
+                                <p className="text-sm font-bold text-dark">
+                                    <strong>Topics Found:</strong> {cifData.totalTopics || 0}
+                                </p>
+                                {cifData.pdfType && (
+                                    <p className="text-xs text-dark/60">
+                                        <strong>PDF Type:</strong> {cifData.pdfType === 'image-based' ? '🖼️ Image-based (Scanned)' : '📄 Text-based'}
+                                    </p>
+                                )}
+                                {cifData.processingTimeMs && (
+                                    <p className="text-xs text-dark/60">
+                                        <strong>Processing Time:</strong> {cifData.processingTimeMs}ms
+                                    </p>
+                                )}
+                                {cifData.message && cifData.totalTopics === 0 && (
+                                    <p className="text-xs text-yellow-700 mt-2 font-semibold">
+                                        💡 {cifData.message}
+                                    </p>
+                                )}
                                 {cifData.additionalInfo && (
-                                    <p className="text-xs text-dark/70 mt-2"><strong>Note:</strong> {cifData.additionalInfo}</p>
+                                    <p className="text-xs text-dark/70 mt-2">
+                                        <strong>Note:</strong> {cifData.additionalInfo}
+                                    </p>
                                 )}
                             </div>
                         )}

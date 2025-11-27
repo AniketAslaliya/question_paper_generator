@@ -1383,34 +1383,107 @@ router.get('/:id/topic-summary', auth, async (req, res) => {
 
 // CIF Parsing Route (EXISTING - stays at end)
 router.post('/parse-cif', auth, upload.single('cif'), async (req, res) => {
+    const requestId = Date.now().toString(36).toUpperCase();
+    console.log(`\n📥 === PARSE-CIF REQUEST START [${requestId}] ===`);
+    const startTime = Date.now();
+    
     try {
-        if (!req.file) return res.status(400).json({ message: 'No CIF file uploaded' });
+        if (!req.file) {
+            console.error(`❌ [${requestId}] No CIF file uploaded`);
+            return res.status(400).json({ 
+                status: 'error',
+                message: 'No CIF file uploaded',
+                parsedTopics: []
+            });
+        }
+
+        console.log(`📄 [${requestId}] File: ${req.file.originalname} (${req.file.mimetype}, ${req.file.size} bytes)`);
 
         let text = '';
-        if (req.file.mimetype === 'application/pdf') {
-            const data = await pdfParse(req.file.buffer);
-            text = data.text;
-        } else if (req.file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-            const result = await mammoth.extractRawText({ buffer: req.file.buffer });
-            text = result.value;
-        } else {
-            text = req.file.buffer.toString('utf8');
+        let extractionMethod = 'unknown';
+
+        try {
+            if (req.file.mimetype === 'application/pdf') {
+                extractionMethod = 'pdf-parse';
+                console.log(`📖 [${requestId}] Extracting text from PDF...`);
+                const data = await pdfParse(req.file.buffer);
+                text = data.text || '';
+                console.log(`✅ [${requestId}] PDF text extraction complete: ${text.length} characters`);
+            } else if (req.file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+                extractionMethod = 'mammoth';
+                console.log(`📖 [${requestId}] Extracting text from DOCX...`);
+                const result = await mammoth.extractRawText({ buffer: req.file.buffer });
+                text = result.value || '';
+                console.log(`✅ [${requestId}] DOCX text extraction complete: ${text.length} characters`);
+            } else {
+                extractionMethod = 'utf8';
+                console.log(`📖 [${requestId}] Extracting text from TXT...`);
+                text = req.file.buffer.toString('utf8');
+                console.log(`✅ [${requestId}] TXT text extraction complete: ${text.length} characters`);
+            }
+        } catch (extractErr) {
+            console.error(`❌ [${requestId}] Text extraction error (${extractionMethod}):`, extractErr.message);
+            return res.status(400).json({ 
+                status: 'error',
+                message: `Failed to extract text from ${extractionMethod}: ${extractErr.message}`,
+                parsedTopics: [],
+                extractionMethod: extractionMethod
+            });
         }
 
         if (!text || text.trim().length < 10) {
-            return res.status(400).json({ message: 'File appears to be empty or could not be parsed' });
+            console.log(`⚠️ [${requestId}] Extracted text too short or empty (${text.length} chars) - likely image-based PDF`);
+            return res.json({ 
+                status: 'success',
+                message: 'PDF appears to be image-based or empty. No text could be extracted. Please add topics manually.',
+                subjectName: 'Unknown Subject',
+                topics: [],
+                totalTopics: 0,
+                additionalInfo: 'This PDF is image-based (scanned). Try adding important topics manually instead.',
+                pdfType: 'image-based',
+                extractedTextLength: 0,
+                extractionMethod: extractionMethod
+            });
         }
 
         // Use enhanced parsing service
         const { parseCIF } = require('../services/parsingService');
+        console.log(`🔍 [${requestId}] Starting CIF parsing...`);
+        
         const parsedData = await parseCIF(text);
+        
+        // Ensure response always has required fields
+        const response = {
+            status: parsedData.status || 'success',
+            subjectName: parsedData.subjectName || 'Unknown Subject',
+            topics: parsedData.topics || [],
+            totalTopics: parsedData.totalTopics || 0,
+            additionalInfo: parsedData.additionalInfo || '',
+            pdfType: parsedData.pdfType || 'text-based',
+            extractedTextLength: parsedData.extractedTextLength || text.length,
+            extractionMethod: extractionMethod,
+            processingTimeMs: Date.now() - startTime,
+            requestId: requestId
+        };
 
-        res.json(parsedData);
+        const elapsedTime = Date.now() - startTime;
+        console.log(`✅ [${requestId}] === PARSE-CIF REQUEST COMPLETE === (${elapsedTime}ms)`);
+        console.log(`📊 [${requestId}] Response: ${response.totalTopics} topics, ${response.extractedTextLength} chars extracted`);
+
+        res.json(response);
     } catch (err) {
-        console.error('CIF Parsing Error:', err);
+        const elapsedTime = Date.now() - startTime;
+        console.error(`❌ [${requestId}] CIF Parsing Error (${elapsedTime}ms):`, err.message);
+        console.error(`❌ [${requestId}] Stack:`, err.stack);
+        
+        // Always return a proper response - never hang!
         res.status(500).json({ 
-            message: 'CIF Parsing Error', 
-            error: process.env.NODE_ENV === 'development' ? err.message : undefined 
+            status: 'error',
+            message: 'CIF Parsing Error: ' + err.message,
+            parsedTopics: [],
+            error: process.env.NODE_ENV === 'development' ? err.message : undefined,
+            requestId: requestId,
+            processingTimeMs: Date.now() - startTime
         });
     }
 });

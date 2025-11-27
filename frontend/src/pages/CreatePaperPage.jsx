@@ -31,6 +31,8 @@ const CreatePaperPage = () => {
     const [cifTopics, setCifTopics] = useState([]);
     const [importantTopicsWithNotes, setImportantTopicsWithNotes] = useState([]);
     const [topicReviewLoading, setTopicReviewLoading] = useState(false);
+    const [topicsLoaded, setTopicsLoaded] = useState(false);
+    const [topicsLoadError, setTopicsLoadError] = useState(null);
 
     const [config, setConfig] = useState({
         templateName: 'midterm',
@@ -222,13 +224,18 @@ const CreatePaperPage = () => {
 
     const loadCifTopics = async () => {
         try {
+            setTopicsLoaded(false);
+            setTopicsLoadError(null);
             const token = localStorage.getItem('token');
             const res = await axios.get(`${API_URL}/api/papers/${paperId}/cif-topics`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setCifTopics(res.data.cifTopics || []);
+            setTopicsLoaded(true);
         } catch (err) {
             console.error('Error loading CIF topics:', err);
+            setTopicsLoaded(true);
+            setTopicsLoadError('Failed to load topics from your CIF file. You can continue without topics or add them manually.');
         }
     };
 
@@ -556,15 +563,37 @@ const CreatePaperPage = () => {
 
                         <div className="space-y-8">
                             {/* Review parsed CIF topics */}
-                            {cifTopics.length > 0 ? (
+                            {!topicsLoaded ? (
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 text-center">
+                                    <div className="flex items-center justify-center gap-2">
+                                        <div className="animate-spin">
+                                            <div className="h-5 w-5 border-2 border-blue-600 border-t-transparent rounded-full"></div>
+                                        </div>
+                                        <p className="text-gray-700">Loading topics from your CIF file...</p>
+                                    </div>
+                                </div>
+                            ) : topicsLoadError ? (
+                                <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+                                    <p className="text-red-800 font-semibold mb-2">⚠️ Error loading topics</p>
+                                    <p className="text-sm text-red-700 mb-2">{topicsLoadError}</p>
+                                    <p className="text-xs text-red-600">This may happen if your PDF is image-based (scanned) rather than text-based</p>
+                                </div>
+                            ) : cifTopics.length > 0 ? (
                                 <TopicReviewCard
                                     parsedTopics={cifTopics}
                                     onConfirm={handleConfirmCifTopics}
                                     loading={topicReviewLoading}
                                 />
                             ) : (
-                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-                                    <p className="text-gray-700">Loading topics from your CIF file...</p>
+                                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+                                    <p className="text-yellow-800 font-semibold mb-2">📋 No topics found in your CIF file</p>
+                                    <p className="text-sm text-yellow-700 mb-3">Your file was processed but no structured topics were extracted. This often happens with:</p>
+                                    <ul className="text-sm text-yellow-700 list-disc list-inside space-y-1 mb-3">
+                                        <li>Image-based PDFs (scanned documents)</li>
+                                        <li>Files without clearly structured topics</li>
+                                        <li>Documents with primarily images or graphics</li>
+                                    </ul>
+                                    <p className="text-sm text-yellow-800 font-semibold">✓ No problem! You can add important topics manually below</p>
                                 </div>
                             )}
 
