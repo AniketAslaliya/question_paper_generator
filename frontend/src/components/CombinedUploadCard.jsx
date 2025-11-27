@@ -32,7 +32,7 @@ const CombinedUploadCard = ({ onUploadComplete, onCIFParsed }) => {
                     'Content-Type': 'multipart/form-data',
                     Authorization: `Bearer ${token}`
                 },
-                timeout: 60000 // 60 second timeout
+                timeout: 120000 // 120 second timeout (increased to handle Gemini API + parsing which can take 30-40s)
             });
 
             console.log('✅ CIF parsing response:', res.data);
@@ -56,7 +56,7 @@ const CombinedUploadCard = ({ onUploadComplete, onCIFParsed }) => {
             
             // Check if it's a timeout
             if (err.code === 'ECONNABORTED') {
-                alert('CIF parsing timed out. The file may be too large or the server is slow. Please try again.');
+                alert('CIF parsing timed out (took longer than 2 minutes). The file may be very large or the server is slow. Please try again or try a smaller file.');
             } else if (err.response?.status === 400) {
                 alert(`CIF parsing failed: ${err.response.data?.message || 'Invalid file format'}`);
             } else if (err.response?.status === 500) {

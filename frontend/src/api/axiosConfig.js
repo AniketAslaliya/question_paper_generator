@@ -28,7 +28,7 @@ console.log('🔧 Environment:', import.meta.env.MODE);
 
 const api = axios.create({
     baseURL: API_URL,
-    timeout: 30000, // 30 second timeout
+    timeout: 120000, // 120 second timeout (increased from 30s to handle CIF parsing which can take 30-40s)
 });
 
 // Add request interceptor to attach token to all requests
