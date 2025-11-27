@@ -9,6 +9,116 @@ const genAI = process.env.GEMINI_API_KEY
     ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
     : null;
 
+/**
+ * LAYER 1: Extract and combine all allowed topics from CIF and important topics
+ * These are the ONLY topics questions should be generated from
+ */
+const extractAllowedTopics = (cifData, importantTopics) => {
+    const allowedTopics = [];
+    
+    // Extract topics from CIF
+    if (cifData && cifData.topics && Array.isArray(cifData.topics)) {
+        cifData.topics.forEach(topic => {
+            const topicName = (topic.name || topic.title || '').trim().toLowerCase();
+            if (topicName && !allowedTopics.includes(topicName)) {
+                allowedTopics.push(topicName);
+            }
+        });
+    }
+    
+    // Extract topics from importantTopics string
+    if (importantTopics && typeof importantTopics === 'string') {
+        importantTopics.split(',').forEach(topic => {
+            const topicName = topic.trim().toLowerCase();
+            if (topicName && !allowedTopics.includes(topicName)) {
+                allowedTopics.push(topicName);
+            }
+        });
+    }
+    
+    console.log('📌 Allowed Topics for Filtering:', allowedTopics);
+    return allowedTopics;
+};
+
+/**
+ * LAYER 2: Filter extracted text to only include content related to allowed topics
+ * This prevents Gemini from seeing (and using) content outside allowed topics
+ */
+const filterContentByTopics = (extractedText, allowedTopics) => {
+    if (!allowedTopics || allowedTopics.length === 0) {
+        console.warn('⚠️ No allowed topics provided. Using full content (not recommended).');
+        return extractedText;
+    }
+    
+    console.log(`🔍 Filtering content: ${extractedText.length} chars against ${allowedTopics.length} topics`);
+    
+    // Split text into paragraphs/sections
+    const sections = extractedText.split(/\n\n+/);
+    const relevantSections = [];
+    
+    sections.forEach((section, idx) => {
+        // Check if section contains ANY allowed topic keyword
+        const sectionLower = section.toLowerCase();
+        const isRelevant = allowedTopics.some(topic => {
+            // Match whole words or common variations
+            const patterns = [
+                new RegExp(`\\b${topic}\\b`, 'i'),
+                new RegExp(topic, 'i')
+            ];
+            return patterns.some(p => p.test(sectionLower));
+        });
+        
+        if (isRelevant) {
+            relevantSections.push(section);
+            console.log(`   ✅ Section ${idx + 1}: Relevant (contains allowed topics)`);
+        } else {
+            console.log(`   ❌ Section ${idx + 1}: Filtered out (no allowed topics)`);
+        }
+    });
+    
+    const filteredContent = relevantSections.join('\n\n');
+    console.log(`📊 Filtering result: ${extractedText.length} → ${filteredContent.length} chars (${Math.round((filteredContent.length / extractedText.length) * 100)}% retained)`);
+    
+    return filteredContent || extractedText; // Fallback to original if nothing matches
+};
+
+/**
+ * LAYER 3: Validate generated questions against allowed topics (post-generation safety)
+ * Acts as a final filter if Gemini generates questions outside scope
+ */
+const validateQuestionsAgainstTopics = (questions, allowedTopics) => {
+    if (!allowedTopics || allowedTopics.length === 0) {
+        console.warn('⚠️ No allowed topics for validation. Skipping question filtering.');
+        return questions;
+    }
+    
+    console.log(`🛡️ Validating ${questions.length} questions against ${allowedTopics.length} allowed topics`);
+    
+    const validQuestions = [];
+    const invalidQuestions = [];
+    
+    questions.forEach((question, idx) => {
+        const questionText = (question.text || '').toLowerCase();
+        
+        // Check if question text contains ANY allowed topic
+        const isValid = allowedTopics.some(topic => {
+            return questionText.includes(topic);
+        });
+        
+        if (isValid) {
+            validQuestions.push(question);
+            console.log(`   ✅ Q${idx + 1}: Valid (contains allowed topic)`);
+        } else {
+            invalidQuestions.push(question);
+            console.log(`   ❌ Q${idx + 1}: FILTERED OUT (no allowed topics) - "${questionText.substring(0, 60)}..."`);
+        }
+    });
+    
+    console.log(`📊 Validation result: ${questions.length} → ${validQuestions.length} valid questions (${invalidQuestions.length} filtered)`);
+    
+    return validQuestions.length > 0 ? validQuestions : questions; // Keep at least something
+};
+
 const generatePaper = async ({
   extractedText,
   templateConfig,
@@ -36,6 +146,16 @@ const generatePaper = async ({
     throw new Error('No sections configured. Please configure at least one section before generating.');
   }
 
+  // ============ LAYER 1: Extract Allowed Topics ============
+  const allowedTopics = extractAllowedTopics(cifData, importantTopics);
+  console.log(`🎯 STRICT FILTERING: Using ${allowedTopics.length} allowed topics`);
+  
+  // ============ LAYER 2: Filter Content by Topics ============
+  // If allowed topics exist, filter extracted text to only include relevant sections
+  const contentToUse = allowedTopics.length > 0 
+    ? filterContentByTopics(extractedText, allowedTopics)
+    : extractedText;
+
   // Log the input configuration
   console.log('📋 Generating paper with configuration:', {
     sectionsCount: sections.length,
@@ -47,7 +167,9 @@ const generatePaper = async ({
     })),
     totalMarks: templateConfig?.marks,
     hasExtractedText: !!extractedText && extractedText.length > 0,
-    textLength: extractedText?.length || 0
+    originalTextLength: extractedText?.length || 0,
+    filteredTextLength: contentToUse?.length || 0,
+    allowedTopicsCount: allowedTopics.length
   });
 
   const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
@@ -92,20 +214,20 @@ const generatePaper = async ({
     : '';
 
   const importantTopicsContext = importantTopics
-    ? `\n\nIMPORTANT TOPICS (MUST BE INCLUDED WITH HIGH PRIORITY):\n${importantTopics}`
+    ? `\n\n⚠️ ALLOWED TOPICS (CRITICAL - ONLY GENERATE QUESTIONS FROM THESE TOPICS):\n${importantTopics}\n\nDO NOT GENERATE QUESTIONS FROM ANY OTHER TOPIC, EVEN IF IT APPEARS IN THE REFERENCE TEXT.`
     : '';
 
   const cifContext = cifData && cifData.subjectName
-    ? `\n\nSUBJECT INFORMATION FROM CIF:\nSubject: ${cifData.subjectName}\nTopics: ${cifData.topics?.map(t => t.name).join(', ') || 'Not specified'}\n\nNote: Topic weightage percentages are for reference only. Section configuration takes absolute priority.`
+    ? `\n\n⚠️ CIF TOPICS (CRITICAL - ONLY GENERATE QUESTIONS FROM THESE TOPICS):\nSubject: ${cifData.subjectName}\nAllowed Topics: ${cifData.topics?.map(t => t.name).join(', ') || 'Not specified'}\n\nDO NOT GENERATE QUESTIONS FROM ANY OTHER TOPIC.`
     : '';
 
   // Validate extracted text
-  if (!extractedText || extractedText.trim().length < 100) {
-    console.warn('⚠️ Extracted text is too short or empty. Length:', extractedText?.length || 0);
-    throw new Error('Insufficient content extracted from uploaded files. Please ensure your files contain readable text content.');
+  if (!contentToUse || contentToUse.trim().length < 100) {
+    console.warn('⚠️ Filtered content is too short or empty. Length:', contentToUse?.length || 0);
+    throw new Error('Insufficient content matching allowed topics. Please ensure your files contain content related to the specified topics.');
   }
 
-  const textToUse = extractedText.length > 50000 ? extractedText.substring(0, 50000) : extractedText;
+  const textToUse = contentToUse.length > 50000 ? contentToUse.substring(0, 50000) : contentToUse;
   
   // Calculate total questions
   const totalQuestions = sections.reduce((sum, s) => sum + (s.questionCount || 0), 0);
@@ -133,19 +255,42 @@ EXAMPLE OF BAD QUESTIONS (DO NOT GENERATE THESE):
 
 ` : '';
 
+  // Build strict topic constraint message
+  const topicConstraintMessage = allowedTopics.length > 0 ? `
+🚫 STRICT TOPIC CONSTRAINT - READ THIS CAREFULLY:
+You MUST ONLY generate questions from these ${allowedTopics.length} allowed topics:
+${allowedTopics.map((t, i) => `${i + 1}. ${t}`).join('\n')}
+
+DO NOT GENERATE ANY QUESTIONS ABOUT:
+- Topics not listed above
+- Concepts outside these topics
+- Examples from other areas
+- ANY content that is not explicitly related to the allowed topics above
+
+ENFORCEMENT:
+- Every single question MUST be about one of the allowed topics listed above
+- If a topic has insufficient content, SKIP IT rather than invent questions
+- If you cannot find enough content for all required questions from allowed topics, say so
+- Never use external knowledge to fill gaps - only use the provided reference text
+` : '';
+
   const prompt = `You are an expert academic question paper generator. Your task is to create REAL, SPECIFIC examination questions based on the provided course content.
+
+${topicConstraintMessage}
 
 🚫 ABSOLUTELY FORBIDDEN - DO NOT GENERATE:
 - Placeholder text like "Question 1 for Section A - Based on the reference material provided"
 - Generic questions like "Explain the topic" or "Write about the concept"
 - Questions that don't reference specific content from the material
 - Questions shorter than 15 words
+- Questions about topics NOT in the allowed topics list above
 
 ✅ YOU MUST GENERATE:
 - Real, detailed questions that test understanding of specific concepts from the content
 - Questions that reference actual topics, theories, formulas, or examples from the material
 - Each question should be 20-50 words and ask for specific information
-- Questions that can be answered using ONLY the provided content
+- Questions that can be answered using ONLY the provided content and allowed topics
+- Questions ONLY about the allowed topics listed above
 
 ${exampleQuestions}
 
@@ -165,6 +310,7 @@ ${s.name}:
   - Marks per Question: ${s.marksPerQuestion.toFixed(1)} marks
   - Question Type: ${s.questionType === 'Multiple Choice' ? 'ALL questions MUST be Multiple Choice with 4 options (a, b, c, d)' : s.questionType === 'Numerical' ? 'ALL questions MUST be Numerical problems with calculations' : s.questionType === 'Long Answer' ? 'ALL questions MUST be Long Answer/Theoretical requiring detailed explanations' : s.questionType === 'Theoretical' ? 'ALL questions MUST be Theoretical/Descriptive' : 'Mixed types allowed'}
   - Instructions: ${s.instructions}
+  - ⚠️ ALL questions in this section MUST BE ABOUT ALLOWED TOPICS ONLY
 `).join('\n')}
 
 - Difficulty Distribution: Easy ${difficulty?.easy || 30}%, Medium ${difficulty?.medium || 50}%, Hard ${difficulty?.hard || 20}%
@@ -176,6 +322,8 @@ ${referenceContext ? `\nReference Questions (use as style guide):\n${referenceCo
 ${previousQuestionsContext}
 
 ⚠️ CRITICAL: IGNORE ANY WEIGHTAGE PERCENTAGES. Section configuration is ABSOLUTE and must be followed exactly.
+
+⚠️ FINAL REMINDER: Questions MUST be about allowed topics. If you generate questions outside these topics, they will be automatically filtered and rejected.
 
 CRITICAL QUESTION TYPE RULES:
 - Multiple Choice: Each question MUST have exactly 4 options labeled (a), (b), (c), (d) in the question text
@@ -196,7 +344,7 @@ OUTPUT FORMAT - Return ONLY valid JSON (no markdown, no code blocks):
       "questions": [
         ${Array(s.questionCount).fill(0).map((_, i) => `{
           "id": ${i + 1},
-          "text": "A REAL, SPECIFIC ${s.questionType === 'Multiple Choice' ? 'multiple choice question with 4 options (a, b, c, d) - format: Question text? (a) option1 (b) option2 (c) option3 (d) option4' : s.questionType === 'Numerical' ? 'numerical problem with specific values and calculations - include all numerical data needed' : s.questionType === 'Long Answer' ? 'long answer/theoretical question requiring detailed explanation (minimum 30 words)' : s.questionType === 'Theoretical' ? 'theoretical question requiring explanation' : 'question'} about a concept from the content. Minimum 20 words. Reference actual topics, formulas, or examples.",
+          "text": "A REAL, SPECIFIC ${s.questionType === 'Multiple Choice' ? 'multiple choice question with 4 options (a, b, c, d) - format: Question text? (a) option1 (b) option2 (c) option3 (d) option4' : s.questionType === 'Numerical' ? 'numerical problem with specific values and calculations - include all numerical data needed' : s.questionType === 'Long Answer' ? 'long answer/theoretical question requiring detailed explanation (minimum 30 words)' : s.questionType === 'Theoretical' ? 'theoretical question requiring explanation' : 'question'} about ONE OF THE ALLOWED TOPICS LISTED ABOVE. Minimum 20 words. Reference actual topics, formulas, or examples.",
           "marks": ${s.marksPerQuestion.toFixed(1)},
           "type": "${s.questionType}",
           "difficulty": "Medium",
@@ -215,8 +363,7 @@ CRITICAL VALIDATION REQUIREMENTS:
 - Each question MUST have the exact marks specified for that section (${sectionsDetail.map(s => `${s.name}: ${s.marksPerQuestion.toFixed(1)} marks per question`).join(', ')})
 - Total marks across all sections MUST equal ${safeTemplateConfig.marks}
 - DO NOT use weightage percentages to determine marks - use section configuration only
-
-FINAL REMINDER: Every question text must be a REAL question that references specific content. If you generate placeholders, the paper will be rejected.`;
+- ⚠️ EVERY QUESTION MUST BE ABOUT AN ALLOWED TOPIC - Questions about other topics will be filtered out`;
 
   try {
     console.log('🤖 Calling Gemini API for paper generation...');
@@ -249,6 +396,27 @@ FINAL REMINDER: Every question text must be a REAL question that references spec
       // Validate the parsed structure
       if (!parsed.sections || !Array.isArray(parsed.sections) || parsed.sections.length === 0) {
         throw new Error('Invalid structure: No sections found in AI response');
+      }
+
+      // ============ LAYER 3: Validate Questions Against Allowed Topics ============
+      if (allowedTopics.length > 0) {
+        console.log('🛡️ Applying Layer 3: Post-generation topic validation...');
+        
+        // Validate questions in each section
+        parsed.sections.forEach((section, sectionIdx) => {
+          if (section.questions && Array.isArray(section.questions)) {
+            const validQuestions = validateQuestionsAgainstTopics(section.questions, allowedTopics);
+            
+            // Log filtered out questions
+            const filteredCount = section.questions.length - validQuestions.length;
+            if (filteredCount > 0) {
+              console.warn(`⚠️ Section ${sectionIdx + 1}: Filtered out ${filteredCount} questions outside allowed topics`);
+            }
+            
+            // Replace section questions with validated ones
+            section.questions = validQuestions;
+          }
+        });
       }
 
       // Validate section configuration matches requirements
@@ -715,4 +883,10 @@ const generateFallbackStructure = (sections, questionTypes, generateAnswerKey, c
   return { json: fallbackData.json, html, answerKeyHtml };
 };
 
-module.exports = { generatePaper };
+module.exports = { 
+  generatePaper,
+  // Export filtering functions for testing and external use
+  extractAllowedTopics,
+  filterContentByTopics,
+  validateQuestionsAgainstTopics
+};
