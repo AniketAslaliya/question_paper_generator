@@ -1,11 +1,15 @@
 import { create } from 'zustand';
 import api from '../api/axiosConfig';
 
+// Initialize state - if token exists, we need to load user first
+const initialToken = localStorage.getItem('token');
+const hasToken = !!initialToken;
+
 const useAuthStore = create((set) => ({
     user: null,
-    token: localStorage.getItem('token') || null,
+    token: initialToken,
     isAuthenticated: false,
-    isLoading: false,
+    isLoading: hasToken, // If token exists, we're loading until verified
     error: null,
 
     login: async (email, password, rememberMe = false) => {
@@ -86,13 +90,14 @@ const useAuthStore = create((set) => ({
         const tokenExpiry = localStorage.getItem('tokenExpiry');
 
         if (!token) {
-            set({ isLoading: false, isAuthenticated: false, user: null });
+            console.log('🔄 No token found, user not authenticated');
+            set({ isLoading: false, isAuthenticated: false, user: null, token: null });
             return;
         }
 
         // Check if token has expired
         if (tokenExpiry && Date.now() > parseInt(tokenExpiry)) {
-            console.log('Token expired, logging out');
+            console.log('⏰ Token expired, logging out');
             localStorage.removeItem('token');
             localStorage.removeItem('tokenExpiry');
             set({ user: null, token: null, isAuthenticated: false, isLoading: false });
@@ -100,24 +105,33 @@ const useAuthStore = create((set) => ({
         }
 
         try {
-            set({ isLoading: true });
+            console.log('🔄 Loading user with token...');
+            set({ isLoading: true, token }); // Ensure token is set in state
             const res = await api.get('/api/auth/me', {
                 headers: { Authorization: `Bearer ${token}` }
             });
             console.log('✅ User loaded successfully:', res.data);
-            set({ user: res.data, token, isAuthenticated: true, isLoading: false, error: null });
+            set({ 
+                user: res.data, 
+                token, 
+                isAuthenticated: true, 
+                isLoading: false, 
+                error: null 
+            });
         } catch (err) {
             console.error('❌ Failed to load user:', err.response?.data || err.message);
+            console.error('Error status:', err.response?.status);
+            
             // Only logout if it's a 401 (unauthorized) or 403 (forbidden) error
             if (err.response?.status === 401 || err.response?.status === 403) {
-                console.log('Invalid token, logging out');
+                console.log('🚫 Invalid token (401/403), logging out');
                 localStorage.removeItem('token');
                 localStorage.removeItem('tokenExpiry');
                 set({ user: null, token: null, isAuthenticated: false, isLoading: false });
             } else {
-                // For network errors, keep token but don't set as authenticated
+                // For network errors or other issues, keep token but don't set as authenticated
                 // This allows retry on next page load
-                console.log('Network error, keeping token for retry');
+                console.log('⚠️ Network error or other issue, keeping token for retry');
                 set({ token, isLoading: false, isAuthenticated: false, user: null });
             }
         }

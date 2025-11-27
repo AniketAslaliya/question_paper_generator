@@ -68,7 +68,7 @@ const generatePaper = async ({
     : '';
 
   const cifContext = cifData
-    ? `\n\nSUBJECT INFORMATION FROM CIF:\nSubject: ${cifData.subjectName}\nTopics with Weightage:\n${cifData.topics.map(t => `- ${t.name}: ${t.weightage}%`).join('\n')}`
+    ? `\n\nSUBJECT INFORMATION FROM CIF:\nSubject: ${cifData.subjectName}\nTopics: ${cifData.topics.map(t => t.name).join(', ')}\n\nNote: Topic weightage percentages are for reference only. Section configuration takes absolute priority.`
     : '';
 
   // Validate extracted text
@@ -78,19 +78,12 @@ const generatePaper = async ({
   }
 
   const textToUse = extractedText.length > 50000 ? extractedText.substring(0, 50000) : extractedText;
-  // Build weightage distribution info
-  const weightageInfo = weightage && Object.keys(weightage).length > 0
-    ? `\n\nCHAPTER/TOPIC WEIGHTAGE (MUST DISTRIBUTE QUESTIONS ACCORDING TO THESE PERCENTAGES):\n${Object.entries(weightage).map(([chapter, weight]) => `- ${chapter}: ${weight}% of total questions`).join('\n')}\n\nIMPORTANT: If Section A has 10 questions and Chapter 1 has 30% weightage, then Chapter 1 should have approximately 3 questions in Section A.`
-    : '';
   
-  // Calculate question distribution per topic
+  // Calculate total questions
   const totalQuestions = sections ? sections.reduce((sum, s) => sum + (s.questionCount || 0), 0) : 0;
-  const questionDistribution = weightage && Object.keys(weightage).length > 0 && totalQuestions > 0
-    ? Object.entries(weightage).map(([chapter, weight]) => {
-        const questionsForChapter = Math.round((weight / 100) * totalQuestions);
-        return `- ${chapter} (${weight}%): Approximately ${questionsForChapter} questions across all sections`;
-      }).join('\n')
-    : '';
+  
+  // NOTE: Weightage is IGNORED - sections configuration takes absolute priority
+  // Questions should be distributed based on important topics, not weightage percentages
 
   // Build a more detailed prompt with examples
   const exampleQuestions = textToUse.length > 500 ? `
@@ -136,19 +129,19 @@ ${s.name}:
   - Question Count: EXACTLY ${s.questionCount} questions (NO MORE, NO LESS)
   - Total Marks: ${s.totalMarks} marks
   - Marks per Question: ${s.marksPerQuestion.toFixed(1)} marks
-  - Question Type: ${s.questionType === 'Multiple Choice' ? 'ALL questions MUST be Multiple Choice with 4 options (a, b, c, d)' : s.questionType === 'Numerical' ? 'ALL questions MUST be Numerical problems with calculations' : s.questionType === 'Theoretical' ? 'ALL questions MUST be Theoretical/Descriptive' : 'Mixed types allowed'}
+  - Question Type: ${s.questionType === 'Multiple Choice' ? 'ALL questions MUST be Multiple Choice with 4 options (a, b, c, d)' : s.questionType === 'Numerical' ? 'ALL questions MUST be Numerical problems with calculations' : s.questionType === 'Long Answer' ? 'ALL questions MUST be Long Answer/Theoretical requiring detailed explanations' : s.questionType === 'Theoretical' ? 'ALL questions MUST be Theoretical/Descriptive' : 'Mixed types allowed'}
   - Instructions: ${s.instructions}
 `).join('\n')}
 
 - Difficulty Distribution: Easy ${difficulty.easy}%, Medium ${difficulty.medium}%, Hard ${difficulty.hard}%
 - Bloom's Taxonomy: ${bloomsInfo}
 ${mandatoryList.length > 0 ? `- Mandatory Exercises: ${JSON.stringify(mandatoryList)}` : ''}
-${weightageInfo}
-${questionDistribution ? `\nQUESTION DISTRIBUTION BY TOPIC:\n${questionDistribution}` : ''}
-${cifContext}
+${cifContext || ''}
 ${importantTopicsContext}
 ${referenceContext ? `\nReference Questions (use as style guide):\n${referenceContext}` : ''}
 ${previousQuestionsContext}
+
+⚠️ CRITICAL: IGNORE ANY WEIGHTAGE PERCENTAGES. Section configuration is ABSOLUTE and must be followed exactly.
 
 CRITICAL QUESTION TYPE RULES:
 - Multiple Choice: Each question MUST have exactly 4 options labeled (a), (b), (c), (d) in the question text
@@ -163,24 +156,31 @@ OUTPUT FORMAT - Return ONLY valid JSON (no markdown, no code blocks):
   "totalMarks": ${templateConfig.marks},
   "duration": "${duration || templateConfig.duration || '3 Hours'}",
   "sections": [
-    {
-      "name": "Section A",
-      "instructions": "Answer all questions from this section",
+    ${sectionsDetail.map(s => `{
+      "name": "${s.name}",
+      "instructions": "${s.instructions}",
       "questions": [
-        {
-          "id": 1,
-          "text": "A REAL, SPECIFIC question about a concept from the content. Minimum 20 words. Reference actual topics, formulas, or examples.",
-          "marks": 10,
-          "type": "Theoretical",
+        ${Array(s.questionCount).fill(0).map((_, i) => `{
+          "id": ${i + 1},
+          "text": "A REAL, SPECIFIC ${s.questionType === 'Multiple Choice' ? 'multiple choice question with 4 options (a, b, c, d) - format: Question text? (a) option1 (b) option2 (c) option3 (d) option4' : s.questionType === 'Numerical' ? 'numerical problem with specific values and calculations - include all numerical data needed' : s.questionType === 'Long Answer' ? 'long answer/theoretical question requiring detailed explanation (minimum 30 words)' : s.questionType === 'Theoretical' ? 'theoretical question requiring explanation' : 'question'} about a concept from the content. Minimum 20 words. Reference actual topics, formulas, or examples.",
+          "marks": ${s.marksPerQuestion.toFixed(1)},
+          "type": "${s.questionType}",
           "difficulty": "Medium",
           "bloomLevel": "Understand",
           "chapter": "Chapter name from content",
           "answer": ${generateAnswerKey ? '"Detailed answer referencing specific content"' : 'null'}
-        }
+        }`).join(',\n        ')}
       ]
-    }
+    }`).join(',\n    ')}
   ]
 }
+
+CRITICAL VALIDATION REQUIREMENTS:
+- Each section MUST have EXACTLY the specified number of questions (no more, no less)
+- Each section MUST have ONLY the specified question type (unless Mixed)
+- Each question MUST have the exact marks specified for that section (${sectionsDetail.map(s => `${s.name}: ${s.marksPerQuestion.toFixed(1)} marks per question`).join(', ')})
+- Total marks across all sections MUST equal ${templateConfig.marks}
+- DO NOT use weightage percentages to determine marks - use section configuration only
 
 FINAL REMINDER: Every question text must be a REAL question that references specific content. If you generate placeholders, the paper will be rejected.`;
 

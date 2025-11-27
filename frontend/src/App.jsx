@@ -10,7 +10,7 @@ import PaperViewPage from './pages/PaperViewPage';
 const PrivateRoute = ({ children }) => {
     const { isAuthenticated, isLoading, token } = useAuthStore();
     
-    // Show loading state
+    // Show loading state while checking authentication
     if (isLoading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -22,13 +22,19 @@ const PrivateRoute = ({ children }) => {
         );
     }
     
-    // If token exists but not authenticated, might be loading - wait a bit
-    if (token && !isAuthenticated && isLoading === false) {
-        // Token exists but auth check failed - redirect to login
-        return <Navigate to="/login" />;
+    // If we have a token but aren't authenticated and not loading, token is invalid
+    if (token && !isAuthenticated) {
+        console.log('⚠️ Token exists but user not authenticated, redirecting to login');
+        return <Navigate to="/login" replace />;
     }
     
-    return isAuthenticated ? children : <Navigate to="/login" />;
+    // No token and not authenticated
+    if (!token && !isAuthenticated) {
+        return <Navigate to="/login" replace />;
+    }
+    
+    // Authenticated - show content
+    return isAuthenticated ? children : <Navigate to="/login" replace />;
 };
 
 const AdminRoute = ({ children }) => {
@@ -38,12 +44,18 @@ const AdminRoute = ({ children }) => {
 };
 
 function App() {
-    const { loadUser, token } = useAuthStore();
+    const { loadUser, token, isLoading } = useAuthStore();
 
     useEffect(() => {
         // Always try to load user on mount if token exists
-        if (token || localStorage.getItem('token')) {
-            loadUser();
+        const storedToken = localStorage.getItem('token');
+        if (storedToken) {
+            console.log('🔄 App mounted with token, loading user...');
+            loadUser().catch(err => {
+                console.error('Failed to load user on mount:', err);
+            });
+        } else {
+            console.log('🔄 App mounted without token');
         }
     }, []); // Empty dependency array - only run on mount
 

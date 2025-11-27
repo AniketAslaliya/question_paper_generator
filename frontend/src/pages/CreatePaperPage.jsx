@@ -6,7 +6,6 @@ import Navbar from '../components/Navbar';
 import StepIndicator from '../components/StepIndicator';
 import CombinedUploadCard from '../components/CombinedUploadCard';
 import TemplateSelector from '../components/TemplateSelector';
-import WeightageTable from '../components/WeightageTable';
 import SectionConfigCard from '../components/SectionConfigCard';
 import BloomsTaxonomySelector from '../components/BloomsTaxonomySelector';
 import ExerciseSelector from '../components/ExerciseSelector';
@@ -68,13 +67,6 @@ const CreatePaperPage = () => {
 
     const handleCIFParsed = (data) => {
         setCifData(data);
-        if (data) {
-            const weightageObj = {};
-            data.topics.forEach(topic => {
-                weightageObj[topic.name] = topic.weightage;
-            });
-            setConfig({ ...config, weightage: weightageObj });
-        }
     };
 
     // Poll generation status
@@ -572,15 +564,7 @@ const CreatePaperPage = () => {
                         </div>
 
                         <section>
-                            <h3 className="section-title">9. Chapter/Topic Weightage</h3>
-                            <WeightageTable
-                                chapters={cifData?.topics || chapters}
-                                onUpdate={(w) => setConfig({ ...config, weightage: w })}
-                            />
-                        </section>
-
-                        <section>
-                            <h3 className="section-title">10. Answer Key</h3>
+                            <h3 className="section-title">9. Answer Key</h3>
                             <div className="card">
                                 <label className="flex items-center gap-4 cursor-pointer">
                                     <input

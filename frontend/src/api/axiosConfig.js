@@ -49,12 +49,14 @@ api.interceptors.request.use(
 api.interceptors.response.use(
     (response) => response,
     (error) => {
-        // Don't handle 401 on login/register endpoints - let them handle their own errors
+        // Don't handle 401 on auth endpoints - let them handle their own errors
         const isAuthEndpoint = error.config?.url?.includes('/api/auth/login') || 
-                              error.config?.url?.includes('/api/auth/register');
+                              error.config?.url?.includes('/api/auth/register') ||
+                              error.config?.url?.includes('/api/auth/me');
         
         if (error.response?.status === 401 && !isAuthEndpoint) {
-            // Token expired or invalid (but not for login/register)
+            // Token expired or invalid (but not for auth endpoints)
+            console.log('🚫 401 error on non-auth endpoint, clearing token');
             localStorage.removeItem('token');
             localStorage.removeItem('tokenExpiry');
             // Only redirect if not already on login page
