@@ -1,8 +1,10 @@
 import { CheckCircle, FileText, Target, Brain } from 'lucide-react';
 
 const ConfigPreview = ({ config, sections, questionTypes, bloomsTaxonomy }) => {
-    const totalMarks = sections.reduce((sum, s) => sum + (s.marks || 0), 0);
-    const totalQuestions = sections.reduce((sum, s) => sum + (s.questionCount || 0), 0);
+    // Extract question types from sections if not provided
+    const questionTypesList = questionTypes || (sections ? [...new Set(sections.map(s => s.questionType).filter(Boolean))] : []);
+    const totalMarks = sections?.reduce((sum, s) => sum + (s.marks || 0), 0) || 0;
+    const totalQuestions = sections?.reduce((sum, s) => sum + (s.questionCount || 0), 0) || 0;
 
     return (
         <div className="card bg-dark text-cream">
@@ -70,11 +72,15 @@ const ConfigPreview = ({ config, sections, questionTypes, bloomsTaxonomy }) => {
                         <div>
                             <h4 className="font-bold text-lg mb-2">Question Types</h4>
                             <div className="flex flex-wrap gap-2">
-                                {questionTypes.map(type => (
-                                    <span key={type} className="px-3 py-1 bg-cream text-dark rounded-full text-xs font-semibold capitalize">
-                                        {type}
-                                    </span>
-                                ))}
+                                {questionTypesList.length > 0 ? (
+                                    questionTypesList.map(type => (
+                                        <span key={type} className="px-3 py-1 bg-cream text-dark rounded-full text-xs font-semibold capitalize">
+                                            {type}
+                                        </span>
+                                    ))
+                                ) : (
+                                    <span className="text-cream/60 text-sm">No question types specified</span>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -105,18 +111,23 @@ const ConfigPreview = ({ config, sections, questionTypes, bloomsTaxonomy }) => {
             </div>
 
             {/* Sections Breakdown */}
-            <div className="mt-6 pt-6 border-t-2 border-cream/20">
-                <h4 className="font-bold text-lg mb-3">Section Breakdown</h4>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {sections.map((section, idx) => (
-                        <div key={idx} className="p-4 bg-cream/10 rounded-lg border border-cream/20">
-                            <h5 className="font-bold mb-2">{section.name}</h5>
-                            <p className="text-sm text-cream/80">{section.questionCount} questions</p>
-                            <p className="text-sm text-cream/80">{section.marks} marks</p>
-                        </div>
-                    ))}
+            {sections && sections.length > 0 && (
+                <div className="mt-6 pt-6 border-t-2 border-cream/20">
+                    <h4 className="font-bold text-lg mb-3">Section Breakdown</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {sections.map((section, idx) => (
+                            <div key={idx} className="p-4 bg-cream/10 rounded-lg border border-cream/20">
+                                <h5 className="font-bold mb-2">{section.name}</h5>
+                                <p className="text-sm text-cream/80">{section.questionCount || 0} questions</p>
+                                <p className="text-sm text-cream/80">{section.marks || 0} marks</p>
+                                {section.questionType && (
+                                    <p className="text-sm text-cream/60 mt-1">Type: {section.questionType}</p>
+                                )}
+                            </div>
+                        ))}
+                    </div>
                 </div>
-            </div>
+            )}
         </div>
     );
 };

@@ -23,7 +23,6 @@ const CreatePaperPage = () => {
     const [paperId, setPaperId] = useState(null);
     const [chapters, setChapters] = useState([]);
     const [detectedExercises, setDetectedExercises] = useState([]);
-    const [showPreview, setShowPreview] = useState(false);
     const [cifData, setCifData] = useState(null);
     const [draftSaved, setDraftSaved] = useState(false);
     const [showDraftPrompt, setShowDraftPrompt] = useState(false);
@@ -201,9 +200,17 @@ const CreatePaperPage = () => {
             const token = localStorage.getItem('token');
 
             if (step === 3) {
+                // Ensure sections are included in config
+                const configToSave = {
+                    ...config,
+                    sections: config.sections || [],
+                    cifData
+                };
+                console.log('💾 Saving config with sections:', configToSave.sections?.length || 0, 'sections');
+                console.log('📋 Sections details:', configToSave.sections);
                 await axios.post(`${API_URL}/api/papers/create-phase2`, {
                     paperId,
-                    config: { ...config, cifData }
+                    config: configToSave
                 }, { headers: { Authorization: `Bearer ${token}` } });
 
                 // Start generation (will be polled for status)
@@ -595,17 +602,6 @@ const CreatePaperPage = () => {
                             </div>
                         </section>
 
-                        {showPreview && (
-                            <section>
-                                <h3 className="section-title">Configuration Preview</h3>
-                                <ConfigPreview
-                                    config={config}
-                                    sections={config.sections}
-                                    bloomsTaxonomy={config.bloomsTaxonomy}
-                                />
-                            </section>
-                        )}
-
                         <div className="flex justify-between items-center pt-8 border-t-4 border-black">
                             <button
                                 onClick={handleBack}
@@ -615,13 +611,6 @@ const CreatePaperPage = () => {
                                 Back to Template
                             </button>
                             <div className="flex gap-4">
-                                <button
-                                    onClick={() => setShowPreview(!showPreview)}
-                                    className="btn-secondary flex items-center gap-2 text-lg px-8 py-4"
-                                >
-                                    <Eye className="w-5 h-5" />
-                                    {showPreview ? 'Hide' : 'Show'} Preview
-                                </button>
                                 <button
                                     onClick={handleGenerate}
                                     disabled={loading}

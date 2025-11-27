@@ -38,11 +38,14 @@ const AdminRoute = ({ children }) => {
 };
 
 function App() {
-    const loadUser = useAuthStore((state) => state.loadUser);
+    const { loadUser, token } = useAuthStore();
 
     useEffect(() => {
-        loadUser();
-    }, [loadUser]);
+        // Always try to load user on mount if token exists
+        if (token || localStorage.getItem('token')) {
+            loadUser();
+        }
+    }, []); // Empty dependency array - only run on mount
 
     return (
         <Router>

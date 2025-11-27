@@ -86,7 +86,7 @@ const useAuthStore = create((set) => ({
         const tokenExpiry = localStorage.getItem('tokenExpiry');
 
         if (!token) {
-            set({ isLoading: false, isAuthenticated: false });
+            set({ isLoading: false, isAuthenticated: false, user: null });
             return;
         }
 
@@ -105,22 +105,20 @@ const useAuthStore = create((set) => ({
                 headers: { Authorization: `Bearer ${token}` }
             });
             console.log('✅ User loaded successfully:', res.data);
-            set({ user: res.data, token, isAuthenticated: true, isLoading: false });
+            set({ user: res.data, token, isAuthenticated: true, isLoading: false, error: null });
         } catch (err) {
             console.error('❌ Failed to load user:', err.response?.data || err.message);
-            // Only logout if it's a 401 (unauthorized) error
+            // Only logout if it's a 401 (unauthorized) or 403 (forbidden) error
             if (err.response?.status === 401 || err.response?.status === 403) {
                 console.log('Invalid token, logging out');
                 localStorage.removeItem('token');
                 localStorage.removeItem('tokenExpiry');
                 set({ user: null, token: null, isAuthenticated: false, isLoading: false });
             } else {
-                // For network errors or other issues, don't logout immediately
-                // Keep the token and let the user try again
+                // For network errors, keep token but don't set as authenticated
+                // This allows retry on next page load
                 console.log('Network error, keeping token for retry');
-                // Don't set isAuthenticated without valid user data
-                // But keep token so user can retry
-                set({ token, isLoading: false, isAuthenticated: false });
+                set({ token, isLoading: false, isAuthenticated: false, user: null });
             }
         }
     }

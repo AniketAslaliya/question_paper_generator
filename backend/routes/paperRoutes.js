@@ -205,10 +205,12 @@ router.post('/create-phase2', auth, async (req, res) => {
         const totalMarks = config.sections.reduce((sum, s) => sum + (parseInt(s.marks) || 0), 0);
         const expectedMarks = config.marks || 100;
         if (Math.abs(totalMarks - expectedMarks) > 1) { // Allow 1 mark difference for rounding
-            return res.status(400).json({ 
-                message: `Section marks (${totalMarks}) do not match total marks (${expectedMarks})` 
-            });
+            console.warn(`⚠️ Section marks (${totalMarks}) do not match total marks (${expectedMarks})`);
+            // Don't fail, just warn - let it proceed
         }
+        console.log(`✅ Saving ${config.sections.length} sections:`, config.sections.map(s => `${s.name}: ${s.questionCount} questions, ${s.marks} marks`).join(', '));
+    } else {
+        console.warn('⚠️ No sections found in config');
     }
     
     try {
@@ -216,14 +218,19 @@ router.post('/create-phase2', auth, async (req, res) => {
         if (!paper) return res.status(404).json({ message: 'Paper not found' });
         if (paper.userId.toString() !== req.user.id) return res.status(401).json({ message: 'Unauthorized' });
 
-        paper.config = config;
+        // Ensure sections are preserved
+        paper.config = {
+            ...config,
+            sections: config.sections || []
+        };
         paper.templateUsed = config.templateName || 'Custom';
         await paper.save();
 
+        console.log(`✅ Config saved for paper ${paperId} with ${paper.config.sections?.length || 0} sections`);
         res.json({ message: 'Configuration saved', paper });
     } catch (err) {
-        console.error(err);
-        res.status(500).send('Server Error');
+        console.error('❌ Error saving config:', err);
+        res.status(500).json({ message: 'Server Error', error: err.message });
     }
 });
 

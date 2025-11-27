@@ -10,6 +10,7 @@ const PaperViewPage = () => {
     const { id } = useParams();
     const [paper, setPaper] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [activeTab, setActiveTab] = useState('questionPaper'); // 'questionPaper' or 'answerKey'
 
     useEffect(() => {
         const fetchPaper = async () => {
@@ -20,21 +21,48 @@ const PaperViewPage = () => {
                 });
                 setPaper(res.data);
             } catch (err) {
-                console.error(err);
+                console.error('Error fetching paper:', err);
+                console.error('Error details:', err.response?.data || err.message);
             } finally {
                 setLoading(false);
             }
         };
-        fetchPaper();
+        if (id) {
+            fetchPaper();
+        }
     }, [id]);
 
-    if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
-    if (!paper) return <div className="min-h-screen flex items-center justify-center">Paper not found</div>;
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-slate-50">
+                <Navbar />
+                <div className="min-h-screen flex items-center justify-center">
+                    <div className="text-center">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                        <p className="text-gray-600">Loading paper...</p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    if (!paper) {
+        return (
+            <div className="min-h-screen bg-slate-50">
+                <Navbar />
+                <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+                        <p className="text-red-800">Paper not found or you don't have access to it.</p>
+                        <Link to="/dashboard" className="mt-4 inline-block btn-primary">Back to Dashboard</Link>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     const latestVersion = paper.versions && paper.versions.length > 0 
         ? paper.versions[paper.versions.length - 1] 
         : null;
-    const [activeTab, setActiveTab] = useState('questionPaper'); // 'questionPaper' or 'answerKey'
     
     if (!latestVersion) {
         return (
