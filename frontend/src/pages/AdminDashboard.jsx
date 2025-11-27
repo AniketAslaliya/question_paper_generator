@@ -238,9 +238,33 @@ const AdminDashboard = () => {
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
-                                                <div className="flex items-center gap-1">
-                                                    <Tag className="w-4 h-4 text-slate-400" />
-                                                    <span className="text-sm text-slate-700">{paper.importantTopicsCount || 0}</span>
+                                                <div className="relative group">
+                                                    <div className="flex items-center gap-1 cursor-pointer">
+                                                        <Tag className="w-4 h-4 text-purple-500" />
+                                                        <span className="text-sm font-semibold text-purple-700">{paper.importantTopicsCount || 0}</span>
+                                                    </div>
+                                                    {/* Tooltip showing topics */}
+                                                    {paper.importantTopics && paper.importantTopics.length > 0 && (
+                                                        <div className="absolute z-10 hidden group-hover:block left-0 top-full mt-1 w-64 p-3 bg-white border border-slate-200 rounded-lg shadow-lg">
+                                                            <div className="text-xs font-semibold text-slate-500 mb-2">Important Topics:</div>
+                                                            <div className="flex flex-wrap gap-1">
+                                                                {paper.importantTopics.slice(0, 5).map((t, idx) => (
+                                                                    <span key={idx} className={`px-2 py-0.5 text-xs rounded-full ${
+                                                                        t.priority === 'High' ? 'bg-red-100 text-red-700' :
+                                                                        t.priority === 'Low' ? 'bg-gray-100 text-gray-700' :
+                                                                        'bg-purple-100 text-purple-700'
+                                                                    }`}>
+                                                                        {t.topic}
+                                                                    </span>
+                                                                ))}
+                                                                {paper.importantTopics.length > 5 && (
+                                                                    <span className="px-2 py-0.5 text-xs bg-slate-100 text-slate-600 rounded-full">
+                                                                        +{paper.importantTopics.length - 5} more
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
@@ -386,6 +410,19 @@ const AdminDashboard = () => {
                                     <p className="text-sm text-slate-500 mt-1">
                                         {selectedPaper.subject} • Created by {selectedPaper.userName} • {new Date(selectedPaper.createdAt).toLocaleDateString()}
                                     </p>
+                                    <div className="flex items-center gap-2 mt-2">
+                                        <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full">
+                                            {selectedPaper.versionsCount || 0} version{selectedPaper.versionsCount !== 1 ? 's' : ''}
+                                        </span>
+                                        <span className="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded-full">
+                                            {selectedPaper.importantTopicsCount || 0} topic{selectedPaper.importantTopicsCount !== 1 ? 's' : ''}
+                                        </span>
+                                        {selectedPaper.isAutoSaved && (
+                                            <span className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded-full">
+                                                Auto-saved
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
                                 <button
                                     onClick={() => setSelectedPaper(null)}
@@ -396,6 +433,31 @@ const AdminDashboard = () => {
                             </div>
 
                             <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+                                {/* Important Topics Section */}
+                                {selectedPaper.importantTopics && selectedPaper.importantTopics.length > 0 && (
+                                    <div className="mb-6 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+                                        <h3 className="text-lg font-bold text-purple-900 mb-3 flex items-center gap-2">
+                                            <Tag className="w-5 h-5" />
+                                            Important Topics
+                                        </h3>
+                                        <div className="flex flex-wrap gap-2">
+                                            {selectedPaper.importantTopics.map((topic, idx) => (
+                                                <span 
+                                                    key={idx}
+                                                    className={`px-3 py-1 rounded-full text-sm font-medium ${
+                                                        topic.priority === 'High' ? 'bg-red-100 text-red-700' :
+                                                        topic.priority === 'Low' ? 'bg-gray-100 text-gray-700' :
+                                                        'bg-purple-100 text-purple-700'
+                                                    }`}
+                                                >
+                                                    {topic.topic}
+                                                    {topic.priority === 'High' && ' ⭐'}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
                                 {selectedPaper.sections && selectedPaper.sections.length > 0 ? (
                                     <div className="space-y-6">
                                         {selectedPaper.sections.map((section, sectionIdx) => (

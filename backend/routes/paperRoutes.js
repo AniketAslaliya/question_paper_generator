@@ -59,11 +59,16 @@ router.post('/create-phase1', auth, upload.single('file'), async (req, res) => {
             chapters = ['Chapter 1', 'Chapter 2', 'Chapter 3'];
         }
 
+        // Generate a meaningful paper name
+        const originalFileName = req.body.paperName || req.file?.originalname?.split('.')[0] || 'Paper';
+        const timestamp = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+        const paperName = `${originalFileName}_${timestamp}_${Date.now().toString(36).toUpperCase()}`;
+
         // Create initial paper record
         const paper = new Paper({
             userId: req.user.id,
             userName: req.user.name,
-            paperName: req.body.paperName || 'Untitled Paper',
+            paperName: paperName,
             extractedData: {
                 textChunks: [text], // Storing full text for now, ideally chunk it
                 chapters: chapters
@@ -147,11 +152,18 @@ router.post('/create-phase1-multi', auth, upload.array('files', 10), async (req,
                 ['Chapter 1', 'Chapter 2', 'Chapter 3'];
         }
 
+        // Generate a meaningful paper name from uploaded files
+        const fileBaseName = fileNames.length > 0 
+            ? fileNames[0].split('.')[0].replace(/[^a-zA-Z0-9]/g, '_')
+            : 'MultiFile_Paper';
+        const timestamp = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+        const paperName = `${fileBaseName}_${timestamp}_${Date.now().toString(36).toUpperCase()}`;
+
         // Create initial paper record
         const paper = new Paper({
             userId: req.user.id,
             userName: req.user.name,
-            paperName: req.body.paperName || 'Untitled Paper',
+            paperName: paperName,
             extractedData: {
                 textChunks: [combinedText],
                 chapters: chapters,
@@ -243,6 +255,32 @@ router.post('/create-phase2', auth, async (req, res) => {
             sections: config.sections || []
         };
         paper.templateUsed = config.templateName || 'Custom';
+        
+        // Save important topics to the structured array if provided
+        if (config.importantTopics && config.importantTopics.trim()) {
+            const topicsArray = config.importantTopics.split(',').map(t => t.trim()).filter(t => t.length > 0);
+            paper.importantTopicsList = topicsArray.map(topic => ({
+                topic: topic,
+                priority: 'Medium',
+                addedBy: req.user.id,
+                addedAt: new Date()
+            }));
+            console.log('📌 Saved important topics:', topicsArray.length, 'topics');
+        }
+        
+        // Update paper name with subject/template if available
+        if (config.templateName || paper.subject) {
+            const baseName = paper.paperName.split('_')[0];
+            const subject = paper.subject || config.subject || '';
+            const template = config.templateName || '';
+            const timestamp = new Date().toISOString().slice(0, 10);
+            if (subject || template) {
+                paper.paperName = `${subject || baseName}_${template || 'Custom'}_${timestamp}`.replace(/\s+/g, '_');
+            }
+        }
+        
+        paper.isAutoSaved = true;
+        paper.lastAutoSaveAt = new Date();
         
         await paper.save();
         

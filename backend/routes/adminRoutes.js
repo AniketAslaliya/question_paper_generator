@@ -90,14 +90,23 @@ router.get('/papers', auth, adminAuth, async (req, res) => {
                 ? paperObj.versions[paperObj.versions.length - 1]
                 : null;
 
+            // Format important topics for display
+            const importantTopics = (paper.importantTopicsList || []).map(t => ({
+                topic: t.topic,
+                priority: t.priority || 'Medium',
+                addedBy: t.addedBy?.name || 'Unknown',
+                addedAt: t.addedAt
+            }));
+
             return {
                 ...paperObj,
                 userRole: paper.userId?.role || null,
                 sections: latestVersion?.generatedContentJSON?.sections || [],
                 importantQuestionsCount: (paper.importantQuestions || []).length,
-                // NEW: Versioning and auto-save info
+                // Versioning and auto-save info
                 versionsCount: (paper.versions || []).length,
-                importantTopicsCount: (paper.importantTopicsList || []).length,
+                importantTopicsCount: importantTopics.length,
+                importantTopics: importantTopics, // Include full topics list
                 isAutoSaved: paper.isAutoSaved || false,
                 lastAutoSaveAt: paper.lastAutoSaveAt,
                 currentVersion: latestVersion ? {
