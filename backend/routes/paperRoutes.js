@@ -416,13 +416,20 @@ router.post('/create-phase3', auth, async (req, res) => {
         await paper.save();
 
         console.log('✅ Paper generated successfully');
+        
+        // AUTO-SAVE: Add version with metadata
         paper.versions.push({
             versionNumber: paper.versions.length + 1,
             generatedContentHTML: generatedData.html,
             generatedAnswerKeyHTML: generatedData.answerKeyHtml,
             generatedContentJSON: generatedData.json,
-            aiModel: 'Gemini Flash 2.5'
+            aiModel: 'Gemini Flash 2.5',
+            changeReason: 'generation',
+            modifiedBy: req.user.id
         });
+        
+        // Set current version to the latest
+        paper.currentVersionIndex = paper.versions.length - 1;
 
         // Update generation status - COMPLETE
         paper.generationStatus = {
@@ -431,6 +438,12 @@ router.post('/create-phase3', auth, async (req, res) => {
             startedAt: paper.generationStatus.startedAt,
             completedAt: new Date()
         };
+        
+        // AUTO-SAVE metadata update
+        paper.isAutoSaved = true;
+        paper.lastAutoSaveAt = new Date();
+        
+        console.log('💾 Auto-saving paper after generation. Version:', paper.versions.length);
 
         await paper.save();
 
@@ -526,8 +539,19 @@ router.post('/:id/regenerate', auth, async (req, res) => {
             generatedContentHTML: generatedData.html,
             generatedAnswerKeyHTML: generatedData.answerKeyHtml,
             generatedContentJSON: generatedData.json,
-            aiModel: 'Gemini Flash 2.5'
+            aiModel: 'Gemini Flash 2.5',
+            changeReason: 'regeneration',
+            modifiedBy: req.user.id
         });
+        
+        // Set current version to the latest
+        paper.currentVersionIndex = paper.versions.length - 1;
+        
+        // AUTO-SAVE metadata update
+        paper.isAutoSaved = true;
+        paper.lastAutoSaveAt = new Date();
+        
+        console.log('💾 Auto-saving paper after regeneration. Version:', paper.versions.length);
 
         await paper.save();
 
@@ -715,6 +739,152 @@ router.delete('/:id/important-questions/:questionId', auth, async (req, res) => 
 
         await paper.save();
         res.json({ message: 'Question removed', paper });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server Error', error: err.message });
+    }
+});
+
+// ==================== IMPORTANT TOPICS ENDPOINTS ====================
+
+// Add Important Topic
+router.post('/:id/important-topics', auth, async (req, res) => {
+    try {
+        const paper = await Paper.findById(req.params.id);
+        if (!paper) return res.status(404).json({ message: 'Paper not found' });
+        if (paper.userId.toString() !== req.user.id && req.user.role !== 'admin') {
+            return res.status(401).json({ message: 'Unauthorized' });
+        }
+
+        const { topic, priority } = req.body;
+        if (!topic || topic.trim().length === 0) {
+            return res.status(400).json({ message: 'Topic is required' });
+        }
+
+        if (!paper.importantTopicsList) {
+            paper.importantTopicsList = [];
+        }
+
+        paper.importantTopicsList.push({
+            topic: topic.trim(),
+            priority: priority || 'Medium',
+            addedBy: req.user.id,
+            addedAt: new Date()
+        });
+
+        // Also update the config.importantTopics string for backward compatibility
+        const topicsString = paper.importantTopicsList.map(t => t.topic).join(', ');
+        if (!paper.config) paper.config = {};
+        paper.config.importantTopics = topicsString;
+
+        paper.isAutoSaved = true;
+        paper.lastAutoSaveAt = new Date();
+
+        await paper.save();
+        console.log('💾 Auto-saved: Important topic added');
+
+        if (req.logActivity) await req.logActivity('important_topic_added', { paperId: paper.id, topic: topic.trim() });
+
+        res.json({ message: 'Topic added', importantTopicsList: paper.importantTopicsList });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server Error', error: err.message });
+    }
+});
+
+// Get Important Topics for a Paper
+router.get('/:id/important-topics', auth, async (req, res) => {
+    try {
+        const paper = await Paper.findById(req.params.id).populate('importantTopicsList.addedBy', 'name email');
+        if (!paper) return res.status(404).json({ message: 'Paper not found' });
+        if (paper.userId.toString() !== req.user.id && req.user.role !== 'admin') {
+            return res.status(401).json({ message: 'Unauthorized' });
+        }
+
+        res.json({ importantTopicsList: paper.importantTopicsList || [] });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server Error', error: err.message });
+    }
+});
+
+// Delete Important Topic
+router.delete('/:id/important-topics/:topicId', auth, async (req, res) => {
+    try {
+        const paper = await Paper.findById(req.params.id);
+        if (!paper) return res.status(404).json({ message: 'Paper not found' });
+        if (paper.userId.toString() !== req.user.id) return res.status(401).json({ message: 'Unauthorized' });
+
+        paper.importantTopicsList = (paper.importantTopicsList || []).filter(
+            t => t._id.toString() !== req.params.topicId
+        );
+
+        // Update the config.importantTopics string for backward compatibility
+        const topicsString = paper.importantTopicsList.map(t => t.topic).join(', ');
+        if (!paper.config) paper.config = {};
+        paper.config.importantTopics = topicsString;
+
+        paper.isAutoSaved = true;
+        paper.lastAutoSaveAt = new Date();
+
+        await paper.save();
+        console.log('💾 Auto-saved: Important topic removed');
+
+        res.json({ message: 'Topic removed', importantTopicsList: paper.importantTopicsList });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server Error', error: err.message });
+    }
+});
+
+// ==================== VERSION HISTORY ENDPOINTS ====================
+
+// Get all versions of a paper
+router.get('/:id/versions', auth, async (req, res) => {
+    try {
+        const paper = await Paper.findById(req.params.id).populate('versions.modifiedBy', 'name email');
+        if (!paper) return res.status(404).json({ message: 'Paper not found' });
+        if (paper.userId.toString() !== req.user.id && req.user.role !== 'admin') {
+            return res.status(401).json({ message: 'Unauthorized' });
+        }
+
+        // Return version metadata without full content for performance
+        const versionsSummary = (paper.versions || []).map((v, idx) => ({
+            _id: v._id,
+            versionNumber: v.versionNumber,
+            createdAt: v.createdAt,
+            aiModel: v.aiModel,
+            changeReason: v.changeReason || 'generation',
+            modifiedBy: v.modifiedBy,
+            isCurrent: idx === (paper.currentVersionIndex || paper.versions.length - 1)
+        }));
+
+        res.json({ 
+            versions: versionsSummary,
+            currentVersionIndex: paper.currentVersionIndex || paper.versions.length - 1,
+            totalVersions: paper.versions.length
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server Error', error: err.message });
+    }
+});
+
+// Get specific version content
+router.get('/:id/versions/:versionId', auth, async (req, res) => {
+    try {
+        const paper = await Paper.findById(req.params.id);
+        if (!paper) return res.status(404).json({ message: 'Paper not found' });
+        if (paper.userId.toString() !== req.user.id && req.user.role !== 'admin') {
+            return res.status(401).json({ message: 'Unauthorized' });
+        }
+
+        const version = paper.versions.find(v => v._id.toString() === req.params.versionId);
+        if (!version) {
+            return res.status(404).json({ message: 'Version not found' });
+        }
+
+        res.json({ version });
     } catch (err) {
         console.error(err);
         res.status(500).json({ message: 'Server Error', error: err.message });

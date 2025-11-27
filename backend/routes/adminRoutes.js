@@ -77,6 +77,8 @@ router.get('/papers', auth, adminAuth, async (req, res) => {
         const papers = await Paper.find()
             .populate('userId', 'name email role')
             .populate('importantQuestions.addedBy', 'name email')
+            .populate('importantTopicsList.addedBy', 'name email')
+            .populate('versions.modifiedBy', 'name email')
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(limit);
@@ -92,7 +94,18 @@ router.get('/papers', auth, adminAuth, async (req, res) => {
                 ...paperObj,
                 userRole: paper.userId?.role || null,
                 sections: latestVersion?.generatedContentJSON?.sections || [],
-                importantQuestionsCount: (paper.importantQuestions || []).length
+                importantQuestionsCount: (paper.importantQuestions || []).length,
+                // NEW: Versioning and auto-save info
+                versionsCount: (paper.versions || []).length,
+                importantTopicsCount: (paper.importantTopicsList || []).length,
+                isAutoSaved: paper.isAutoSaved || false,
+                lastAutoSaveAt: paper.lastAutoSaveAt,
+                currentVersion: latestVersion ? {
+                    versionNumber: latestVersion.versionNumber,
+                    createdAt: latestVersion.createdAt,
+                    changeReason: latestVersion.changeReason || 'generation',
+                    modifiedBy: latestVersion.modifiedBy
+                } : null
             };
         });
 
@@ -208,6 +221,69 @@ router.get('/logs', auth, adminAuth, async (req, res) => {
     } catch (err) {
         console.error(err);
         res.status(500).send('Server Error');
+    }
+});
+
+// Get Paper Version History (Admin)
+router.get('/papers/:id/versions', auth, adminAuth, async (req, res) => {
+    try {
+        const paper = await Paper.findById(req.params.id).populate('versions.modifiedBy', 'name email');
+        if (!paper) return res.status(404).json({ message: 'Paper not found' });
+
+        // Return version metadata without full content for performance
+        const versionsSummary = (paper.versions || []).map((v, idx) => ({
+            _id: v._id,
+            versionNumber: v.versionNumber,
+            createdAt: v.createdAt,
+            aiModel: v.aiModel,
+            changeReason: v.changeReason || 'generation',
+            modifiedBy: v.modifiedBy,
+            isCurrent: idx === (paper.currentVersionIndex || paper.versions.length - 1)
+        }));
+
+        res.json({ 
+            versions: versionsSummary,
+            currentVersionIndex: paper.currentVersionIndex || paper.versions.length - 1,
+            totalVersions: paper.versions.length,
+            paperName: paper.paperName
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server Error', error: err.message });
+    }
+});
+
+// Get Specific Version Content (Admin)
+router.get('/papers/:id/versions/:versionId', auth, adminAuth, async (req, res) => {
+    try {
+        const paper = await Paper.findById(req.params.id);
+        if (!paper) return res.status(404).json({ message: 'Paper not found' });
+
+        const version = paper.versions.find(v => v._id.toString() === req.params.versionId);
+        if (!version) {
+            return res.status(404).json({ message: 'Version not found' });
+        }
+
+        res.json({ version, paperName: paper.paperName });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server Error', error: err.message });
+    }
+});
+
+// Get Important Topics (Admin)
+router.get('/papers/:id/important-topics', auth, adminAuth, async (req, res) => {
+    try {
+        const paper = await Paper.findById(req.params.id).populate('importantTopicsList.addedBy', 'name email');
+        if (!paper) return res.status(404).json({ message: 'Paper not found' });
+
+        res.json({ 
+            importantTopicsList: paper.importantTopicsList || [],
+            paperName: paper.paperName
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server Error', error: err.message });
     }
 });
 

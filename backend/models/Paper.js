@@ -6,6 +6,11 @@ const paperSchema = new mongoose.Schema({
     paperName: { type: String, required: true },
     subject: { type: String },
     templateUsed: { type: String },
+    
+    // Auto-save metadata
+    isAutoSaved: { type: Boolean, default: true }, // All papers now auto-save
+    lastAutoSaveAt: { type: Date },
+    
     config: {
         templateName: String,
         marks: Number,
@@ -41,6 +46,15 @@ const paperSchema = new mongoose.Schema({
         setsGenerated: Boolean,
         answerKeyMode: Boolean
     },
+    
+    // Structured important topics array
+    importantTopicsList: [{
+        topic: { type: String, required: true },
+        priority: { type: String, enum: ['High', 'Medium', 'Low'], default: 'Medium' },
+        addedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        addedAt: { type: Date, default: Date.now }
+    }],
+    
     extractedData: {
         chapters: [String],
         textChunks: [String],
@@ -54,8 +68,15 @@ const paperSchema = new mongoose.Schema({
         generatedAnswerKeyHTML: String,
         generatedContentJSON: Object,
         createdAt: { type: Date, default: Date.now },
-        aiModel: { type: String, default: "Gemini Flash 2.5" }
+        aiModel: { type: String, default: "Gemini Flash 2.5" },
+        // Version metadata
+        changeReason: { type: String }, // 'generation', 'regeneration', 'edit'
+        modifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
     }],
+    
+    // Track current active version (for version history navigation)
+    currentVersionIndex: { type: Number, default: 0 },
+    
     generationStatus: {
         status: { type: String, enum: ['pending', 'generating', 'completed', 'failed'], default: 'pending' },
         progress: { type: Number, default: 0 },
