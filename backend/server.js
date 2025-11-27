@@ -46,6 +46,22 @@ app.use(express.json({ limit: '50mb' })); // Limit request body size
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(logger); // Attach logger helper to all requests
 
+// Welcome endpoint
+app.get('/', (req, res) => {
+    res.status(200).json({
+        message: 'Question Paper Generator API',
+        status: 'running',
+        version: '1.0.0',
+        healthCheck: '/healthz',
+        endpoints: {
+            auth: '/api/auth',
+            papers: '/api/papers',
+            admin: '/api/admin',
+            drafts: '/api/drafts'
+        }
+    });
+});
+
 // Health Check
 app.get('/healthz', (req, res) => {
     const health = {
