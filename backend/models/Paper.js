@@ -47,7 +47,24 @@ const paperSchema = new mongoose.Schema({
         answerKeyMode: Boolean
     },
     
-    // Structured important topics array
+    // CIF Topics - Confirmed/edited by user
+    cifTopics: [{
+        name: { type: String, required: true },
+        originalName: String, // Original name from CIF parsing
+        isConfirmed: { type: Boolean, default: true },
+        confirmedAt: { type: Date, default: Date.now }
+    }],
+    
+    // Structured important topics with custom instructions/notes
+    importantTopicsWithNotes: [{
+        topic: { type: String, required: true },
+        notes: { type: String, default: '' }, // Custom instructions for Gemini
+        priority: { type: String, enum: ['High', 'Medium', 'Low'], default: 'Medium' },
+        addedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        addedAt: { type: Date, default: Date.now }
+    }],
+    
+    // Structured important topics array (DEPRECATED - keeping for backward compatibility)
     importantTopicsList: [{
         topic: { type: String, required: true },
         priority: { type: String, enum: ['High', 'Medium', 'Low'], default: 'Medium' },

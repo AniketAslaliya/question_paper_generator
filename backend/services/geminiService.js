@@ -133,6 +133,8 @@ const generatePaper = async ({
   previousVersions = [],
   referenceQuestions = [],
   importantTopics = '',
+  importantTopicsWithNotes = [], // NEW: Array of {topic, notes, priority}
+  cifTopics = [], // NEW: Array of confirmed CIF topic names
   cifData = null,
   duration = '3 Hours'
 }) => {
@@ -147,8 +149,43 @@ const generatePaper = async ({
   }
 
   // ============ LAYER 1: Extract Allowed Topics ============
-  const allowedTopics = extractAllowedTopics(cifData, importantTopics);
-  console.log(`🎯 STRICT FILTERING: Using ${allowedTopics.length} allowed topics`);
+  // Priority: Use confirmed CIF topics + important topics, fallback to old method
+  let allowedTopics = [];
+  
+  if (cifTopics && cifTopics.length > 0) {
+    // Use new confirmed CIF topics
+    allowedTopics.push(...cifTopics.map(t => typeof t === 'string' ? t.toLowerCase() : t.name.toLowerCase()));
+  } else if (cifData && cifData.topics && Array.isArray(cifData.topics)) {
+    // Fallback to old cifData structure
+    cifData.topics.forEach(topic => {
+      const topicName = (topic.name || topic.title || '').trim().toLowerCase();
+      if (topicName && !allowedTopics.includes(topicName)) {
+        allowedTopics.push(topicName);
+      }
+    });
+  }
+  
+  // Add important topics
+  if (importantTopicsWithNotes && Array.isArray(importantTopicsWithNotes)) {
+    importantTopicsWithNotes.forEach(item => {
+      const topicName = (item.topic || '').trim().toLowerCase();
+      if (topicName && !allowedTopics.includes(topicName)) {
+        allowedTopics.push(topicName);
+      }
+    });
+  } else if (importantTopics && typeof importantTopics === 'string') {
+    // Fallback to old string format
+    importantTopics.split(',').forEach(topic => {
+      const topicName = topic.trim().toLowerCase();
+      if (topicName && !allowedTopics.includes(topicName)) {
+        allowedTopics.push(topicName);
+      }
+    });
+  }
+  
+  console.log(`📌 Allowed Topics for Generation (${allowedTopics.length} topics):`, allowedTopics);
+  console.log(`   - CIF Topics: ${cifTopics?.length || 0}`);
+  console.log(`   - Important Topics: ${importantTopicsWithNotes?.length || 0}`);
   
   // ============ LAYER 2: Filter Content by Topics ============
   // If allowed topics exist, filter extracted text to only include relevant sections
@@ -274,9 +311,22 @@ ENFORCEMENT:
 - Never use external knowledge to fill gaps - only use the provided reference text
 ` : '';
 
+  // Build important topics with custom instructions
+  const importantTopicsInstructions = importantTopicsWithNotes && importantTopicsWithNotes.length > 0 ? `
+📌 IMPORTANT TOPICS WITH SPECIAL INSTRUCTIONS:
+For these topics, follow the specific guidance provided:
+
+${importantTopicsWithNotes.map((item, i) => `${i + 1}. "${item.topic}" ${item.priority ? `[Priority: ${item.priority}]` : ''}
+   ${item.notes ? `Instructions: ${item.notes}` : 'No specific instructions'}`).join('\n\n')}
+
+When generating questions for these topics, prioritize following the special instructions above.
+` : '';
+
   const prompt = `You are an expert academic question paper generator. Your task is to create REAL, SPECIFIC examination questions based on the provided course content.
 
 ${topicConstraintMessage}
+
+${importantTopicsInstructions}
 
 🚫 ABSOLUTELY FORBIDDEN - DO NOT GENERATE:
 - Placeholder text like "Question 1 for Section A - Based on the reference material provided"

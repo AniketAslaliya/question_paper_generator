@@ -431,6 +431,10 @@ router.post('/create-phase3', auth, async (req, res) => {
             ...importantQuestionsList
         ];
 
+        // Build allowed topics from confirmed CIF topics and important topics
+        const confirmedCifTopics = (paper.cifTopics || []).map(t => t.name);
+        const importantTopicsData = paper.importantTopicsWithNotes || [];
+
         const generatedData = await generatePaper({
             extractedText: extractedText,
             templateConfig: paper.config,
@@ -445,6 +449,8 @@ router.post('/create-phase3', auth, async (req, res) => {
             previousVersions: [],
             referenceQuestions: allReferenceQuestions,
             importantTopics: paper.config.importantTopics || '',
+            importantTopicsWithNotes: importantTopicsData, // NEW: Pass structured important topics
+            cifTopics: confirmedCifTopics, // NEW: Pass confirmed CIF topics
             cifData: paper.config.cifData || null,
             duration: paper.config.duration || '3 Hours'
         });
@@ -1139,7 +1145,243 @@ router.post('/:id/suggest-questions', auth, async (req, res) => {
     }
 });
 
-// CIF Parsing Route
+// Save Confirmed CIF Topics (Step 1.5: After parsing, user reviews/edits)
+router.post('/:id/confirm-cif-topics', auth, async (req, res) => {
+    try {
+        const { paperId } = req.params;
+        const { confirmedTopics } = req.body;
+
+        if (!paperId) {
+            return res.status(400).json({ message: 'Paper ID is required' });
+        }
+
+        if (!Array.isArray(confirmedTopics)) {
+            return res.status(400).json({ message: 'confirmedTopics must be an array' });
+        }
+
+        const paper = await Paper.findById(paperId);
+        if (!paper) {
+            return res.status(404).json({ message: 'Paper not found' });
+        }
+
+        if (paper.userId.toString() !== req.user.id) {
+            return res.status(401).json({ message: 'Unauthorized' });
+        }
+
+        // Save confirmed topics
+        paper.cifTopics = confirmedTopics.map(topic => ({
+            name: typeof topic === 'string' ? topic : topic.name,
+            originalName: typeof topic === 'string' ? topic : topic.originalName,
+            isConfirmed: true,
+            confirmedAt: new Date()
+        }));
+
+        paper.isAutoSaved = true;
+        paper.lastAutoSaveAt = new Date();
+        await paper.save();
+
+        console.log(`✅ Confirmed ${confirmedTopics.length} CIF topics for paper ${paperId}`);
+
+        if (req.logActivity) {
+            await req.logActivity('cif_topics_confirmed', {
+                paperId,
+                topicCount: confirmedTopics.length
+            });
+        }
+
+        res.json({
+            message: 'CIF topics confirmed',
+            cifTopics: paper.cifTopics,
+            totalTopics: paper.cifTopics.length
+        });
+    } catch (err) {
+        console.error('Error confirming CIF topics:', err);
+        res.status(500).json({
+            message: 'Server Error',
+            error: process.env.NODE_ENV === 'development' ? err.message : undefined
+        });
+    }
+});
+
+// Get Confirmed CIF Topics
+router.get('/:id/cif-topics', auth, async (req, res) => {
+    try {
+        const paper = await Paper.findById(req.params.id);
+        if (!paper) {
+            return res.status(404).json({ message: 'Paper not found' });
+        }
+
+        if (paper.userId.toString() !== req.user.id && req.user.role !== 'admin') {
+            return res.status(401).json({ message: 'Unauthorized' });
+        }
+
+        res.json({
+            cifTopics: paper.cifTopics || [],
+            totalTopics: paper.cifTopics?.length || 0
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server Error', error: err.message });
+    }
+});
+
+// Add/Update Important Topic with Notes
+router.post('/:id/important-topics-with-notes', auth, async (req, res) => {
+    try {
+        const { topic, notes, priority } = req.body;
+
+        if (!topic || topic.trim().length === 0) {
+            return res.status(400).json({ message: 'Topic is required' });
+        }
+
+        const paper = await Paper.findById(req.params.id);
+        if (!paper) {
+            return res.status(404).json({ message: 'Paper not found' });
+        }
+
+        if (paper.userId.toString() !== req.user.id && req.user.role !== 'admin') {
+            return res.status(401).json({ message: 'Unauthorized' });
+        }
+
+        if (!paper.importantTopicsWithNotes) {
+            paper.importantTopicsWithNotes = [];
+        }
+
+        // Check if topic already exists
+        const existingIndex = paper.importantTopicsWithNotes.findIndex(
+            t => t.topic.toLowerCase() === topic.toLowerCase()
+        );
+
+        if (existingIndex >= 0) {
+            // Update existing
+            paper.importantTopicsWithNotes[existingIndex].notes = notes || '';
+            paper.importantTopicsWithNotes[existingIndex].priority = priority || 'Medium';
+        } else {
+            // Add new
+            paper.importantTopicsWithNotes.push({
+                topic: topic.trim(),
+                notes: notes || '',
+                priority: priority || 'Medium',
+                addedBy: req.user.id,
+                addedAt: new Date()
+            });
+        }
+
+        paper.isAutoSaved = true;
+        paper.lastAutoSaveAt = new Date();
+        await paper.save();
+
+        console.log(`✅ Added/Updated important topic with notes: ${topic}`);
+
+        if (req.logActivity) {
+            await req.logActivity('important_topic_with_notes_added', {
+                paperId: paper.id,
+                topic
+            });
+        }
+
+        res.json({
+            message: 'Important topic added/updated',
+            importantTopicsWithNotes: paper.importantTopicsWithNotes
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server Error', error: err.message });
+    }
+});
+
+// Get Important Topics with Notes
+router.get('/:id/important-topics-with-notes', auth, async (req, res) => {
+    try {
+        const paper = await Paper.findById(req.params.id);
+        if (!paper) {
+            return res.status(404).json({ message: 'Paper not found' });
+        }
+
+        if (paper.userId.toString() !== req.user.id && req.user.role !== 'admin') {
+            return res.status(401).json({ message: 'Unauthorized' });
+        }
+
+        res.json({
+            importantTopicsWithNotes: paper.importantTopicsWithNotes || [],
+            totalTopics: paper.importantTopicsWithNotes?.length || 0
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server Error', error: err.message });
+    }
+});
+
+// Delete Important Topic with Notes
+router.delete('/:id/important-topics-with-notes/:topicId', auth, async (req, res) => {
+    try {
+        const paper = await Paper.findById(req.params.id);
+        if (!paper) {
+            return res.status(404).json({ message: 'Paper not found' });
+        }
+
+        if (paper.userId.toString() !== req.user.id) {
+            return res.status(401).json({ message: 'Unauthorized' });
+        }
+
+        paper.importantTopicsWithNotes = (paper.importantTopicsWithNotes || []).filter(
+            t => t._id.toString() !== req.params.topicId
+        );
+
+        paper.isAutoSaved = true;
+        paper.lastAutoSaveAt = new Date();
+        await paper.save();
+
+        res.json({
+            message: 'Topic removed',
+            importantTopicsWithNotes: paper.importantTopicsWithNotes
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server Error', error: err.message });
+    }
+});
+
+// Get Topic Summary (for preview before generation)
+router.get('/:id/topic-summary', auth, async (req, res) => {
+    try {
+        const paper = await Paper.findById(req.params.id);
+        if (!paper) {
+            return res.status(404).json({ message: 'Paper not found' });
+        }
+
+        if (paper.userId.toString() !== req.user.id && req.user.role !== 'admin') {
+            return res.status(401).json({ message: 'Unauthorized' });
+        }
+
+        const cifTopics = (paper.cifTopics || []).map(t => t.name);
+        const importantTopics = (paper.importantTopicsWithNotes || []).map(t => ({
+            topic: t.topic,
+            notes: t.notes,
+            priority: t.priority
+        }));
+
+        const allAllowedTopics = [
+            ...cifTopics,
+            ...importantTopics.map(t => t.topic)
+        ];
+
+        res.json({
+            cifTopics,
+            importantTopicsWithNotes: importantTopics,
+            allAllowedTopics,
+            totalCifTopics: cifTopics.length,
+            totalImportantTopics: importantTopics.length,
+            totalAllowedTopics: allAllowedTopics.length,
+            readyForGeneration: cifTopics.length > 0 || importantTopics.length > 0
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server Error', error: err.message });
+    }
+});
+
+// CIF Parsing Route (EXISTING - stays at end)
 router.post('/parse-cif', auth, upload.single('cif'), async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ message: 'No CIF file uploaded' });

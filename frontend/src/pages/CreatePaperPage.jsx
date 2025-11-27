@@ -11,9 +11,12 @@ import BloomsTaxonomySelector from '../components/BloomsTaxonomySelector';
 import ExerciseSelector from '../components/ExerciseSelector';
 import ReferenceQuestionsCard from '../components/ReferenceQuestionsCard';
 import ImportantTopicsCard from '../components/ImportantTopicsCard';
+import ImportantTopicsWithNotesCard from '../components/ImportantTopicsWithNotesCard';
 import ImportantQuestionsCard from '../components/ImportantQuestionsCard';
 import ConfigPreview from '../components/ConfigPreview';
 import RichEditor from '../components/RichEditor';
+import TopicReviewCard from '../components/TopicReviewCard';
+import TopicSummaryPreview from '../components/TopicSummaryPreview';
 import { ArrowRight, ArrowLeft, Save, RefreshCw, Download, Eye, CheckCircle, Clock } from 'lucide-react';
 
 const CreatePaperPage = () => {
@@ -25,6 +28,9 @@ const CreatePaperPage = () => {
     const [cifData, setCifData] = useState(null);
     const [draftSaved, setDraftSaved] = useState(false);
     const [showDraftPrompt, setShowDraftPrompt] = useState(false);
+    const [cifTopics, setCifTopics] = useState([]);
+    const [importantTopicsWithNotes, setImportantTopicsWithNotes] = useState([]);
+    const [topicReviewLoading, setTopicReviewLoading] = useState(false);
 
     const [config, setConfig] = useState({
         templateName: 'midterm',
@@ -62,6 +68,7 @@ const CreatePaperPage = () => {
         setPaperId(data.paperId);
         setChapters(data.chapters);
         setDetectedExercises(data.exercises || []);
+        // Go to topic review step instead of template selection
         setStep(2);
     };
 
@@ -93,7 +100,7 @@ const CreatePaperPage = () => {
                             if (paper.versions && paper.versions.length > 0) {
                                 const latestVersion = paper.versions[paper.versions.length - 1];
                                 setGeneratedContent(latestVersion.generatedContentHTML || '');
-                                setStep(4);
+                                setStep(5);
                             }
                         } else if (status.status === 'failed') {
                             // Show error message
@@ -115,8 +122,16 @@ const CreatePaperPage = () => {
 
     // Load important questions when paperId is available
     useEffect(() => {
-        if (paperId && step >= 3) {
+        if (paperId && step >= 4) {
             loadImportantQuestions();
+        }
+    }, [paperId, step]);
+
+    // Load CIF topics when on topic review step
+    useEffect(() => {
+        if (paperId && step === 2) {
+            loadCifTopics();
+            loadImportantTopicsWithNotes();
         }
     }, [paperId, step]);
 
@@ -205,6 +220,92 @@ const CreatePaperPage = () => {
         }
     };
 
+    const loadCifTopics = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const res = await axios.get(`${API_URL}/api/papers/${paperId}/cif-topics`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setCifTopics(res.data.cifTopics || []);
+        } catch (err) {
+            console.error('Error loading CIF topics:', err);
+        }
+    };
+
+    const loadImportantTopicsWithNotes = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const res = await axios.get(`${API_URL}/api/papers/${paperId}/important-topics-with-notes`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setImportantTopicsWithNotes(res.data.importantTopicsWithNotes || []);
+        } catch (err) {
+            console.error('Error loading important topics with notes:', err);
+        }
+    };
+
+    const handleConfirmCifTopics = async (confirmedTopics) => {
+        try {
+            setTopicReviewLoading(true);
+            const token = localStorage.getItem('token');
+            await axios.post(`${API_URL}/api/papers/${paperId}/confirm-cif-topics`, {
+                cifTopics: confirmedTopics
+            }, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setCifTopics(confirmedTopics);
+            // Proceed to important topics step
+            setStep(3);
+        } catch (err) {
+            console.error('Error confirming CIF topics:', err);
+            alert('Failed to save topics. Please try again.');
+        } finally {
+            setTopicReviewLoading(false);
+        }
+    };
+
+    const handleAddImportantTopicWithNotes = async (topicData) => {
+        try {
+            const token = localStorage.getItem('token');
+            await axios.post(`${API_URL}/api/papers/${paperId}/important-topics-with-notes`, topicData, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            await loadImportantTopicsWithNotes();
+        } catch (err) {
+            console.error('Error adding important topic:', err);
+            alert('Failed to add topic. Please try again.');
+        }
+    };
+
+    const handleDeleteImportantTopicWithNotes = async (topicId) => {
+        try {
+            const token = localStorage.getItem('token');
+            await axios.delete(`${API_URL}/api/papers/${paperId}/important-topics-with-notes/${topicId}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            await loadImportantTopicsWithNotes();
+        } catch (err) {
+            console.error('Error deleting important topic:', err);
+            alert('Failed to delete topic. Please try again.');
+        }
+    };
+
+    const handleUpdateImportantTopicWithNotes = async (topicId, field, value) => {
+        try {
+            const topic = importantTopicsWithNotes.find(t => t._id === topicId);
+            if (!topic) return;
+
+            const updatedTopic = { ...topic, [field]: value };
+            const token = localStorage.getItem('token');
+            await axios.post(`${API_URL}/api/papers/${paperId}/important-topics-with-notes`, updatedTopic, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            await loadImportantTopicsWithNotes();
+        } catch (err) {
+            console.error('Error updating important topic:', err);
+        }
+    };
+
     const handleGenerate = async () => {
         // Validate sections before generating
         if (!config.sections || config.sections.length === 0) {
@@ -224,7 +325,7 @@ const CreatePaperPage = () => {
         try {
             const token = localStorage.getItem('token');
 
-            if (step === 3) {
+            if (step === 4) {
                 // Ensure sections are included in config
                 const configToSave = {
                     ...config,
@@ -236,18 +337,23 @@ const CreatePaperPage = () => {
                 console.log('💾 Saving config with sections:', configToSave.sections?.length || 0, 'sections');
                 console.log('📋 Sections details:', configToSave.sections);
                 console.log('📋 Total marks:', configToSave.marks);
+                console.log('📚 CIF Topics:', cifTopics.length);
+                console.log('📝 Important Topics:', importantTopicsWithNotes.length);
+                
                 await axios.post(`${API_URL}/api/papers/create-phase2`, {
                     paperId,
                     config: configToSave
                 }, { headers: { Authorization: `Bearer ${token}` } });
 
-                // Start generation (will be polled for status)
+                // Start generation with topic data
                 await axios.post(`${API_URL}/api/papers/create-phase3`, {
-                    paperId
+                    paperId,
+                    cifTopics,
+                    importantTopicsWithNotes
                 }, { headers: { Authorization: `Bearer ${token}` } });
 
                 // Status will be updated via polling
-            } else if (step === 4) {
+            } else if (step === 5) {
                 const res = await axios.post(`${API_URL}/api/papers/${paperId}/regenerate`, {}, {
                     headers: { Authorization: `Bearer ${token}` }
                 });
@@ -322,7 +428,7 @@ const CreatePaperPage = () => {
 
     // Auto-save every 30 seconds
     useEffect(() => {
-        if (step === 1 || step === 4) return; // Don't save on upload or generation steps
+        if (step === 1 || step === 2 || step === 5) return; // Don't save on upload, topics, or generation steps
 
         const saveDraft = async () => {
             try {
@@ -440,8 +546,68 @@ const CreatePaperPage = () => {
                     </div>
                 )}
 
-                {/* STEP 2: Select Template */}
+                {/* STEP 2: Topic Review */}
                 {step === 2 && (
+                    <div>
+                        <div className="mb-8">
+                            <h2 className="text-3xl font-bold text-black mb-2">Review & Confirm Topics</h2>
+                            <p className="text-gray-600">Review and edit topics extracted from your CIF file. These topics will be used to generate questions.</p>
+                        </div>
+
+                        <div className="space-y-8">
+                            {/* Review parsed CIF topics */}
+                            {cifTopics.length > 0 ? (
+                                <TopicReviewCard
+                                    parsedTopics={cifTopics}
+                                    onConfirm={handleConfirmCifTopics}
+                                    loading={topicReviewLoading}
+                                />
+                            ) : (
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+                                    <p className="text-gray-700">Loading topics from your CIF file...</p>
+                                </div>
+                            )}
+
+                            {/* Add important topics with notes */}
+                            <ImportantTopicsWithNotesCard
+                                topics={importantTopicsWithNotes}
+                                onAdd={handleAddImportantTopicWithNotes}
+                                onDelete={handleDeleteImportantTopicWithNotes}
+                                onUpdate={handleUpdateImportantTopicWithNotes}
+                            />
+
+                            {/* Topic summary preview */}
+                            {(cifTopics.length > 0 || importantTopicsWithNotes.length > 0) && (
+                                <TopicSummaryPreview
+                                    cifTopics={cifTopics}
+                                    importantTopicsWithNotes={importantTopicsWithNotes}
+                                    onProceed={() => setStep(3)}
+                                    onEdit={() => window.scrollTo(0, 0)}
+                                    loading={topicReviewLoading}
+                                />
+                            )}
+                        </div>
+
+                        <div className="flex justify-between mt-8">
+                            <button onClick={handleBack} className="btn-secondary flex items-center gap-2">
+                                <ArrowLeft className="w-5 h-5" />
+                                Back to Upload
+                            </button>
+                            {cifTopics.length === 0 && importantTopicsWithNotes.length === 0 && (
+                                <button
+                                    onClick={() => setStep(3)}
+                                    className="btn-primary flex items-center gap-2"
+                                >
+                                    Continue Without Topics
+                                    <ArrowRight className="w-5 h-5" />
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* STEP 3: Select Template */}
+                {step === 3 && (
                     <div>
                         <div className="mb-8">
                             <h2 className="text-3xl font-bold text-black mb-2">Select Your Template</h2>
@@ -472,10 +638,10 @@ const CreatePaperPage = () => {
                         <div className="flex justify-between mt-8">
                             <button onClick={handleBack} className="btn-secondary flex items-center gap-2">
                                 <ArrowLeft className="w-5 h-5" />
-                                Back to Upload
+                                Back to Topics
                             </button>
                             <button
-                                onClick={() => setStep(3)}
+                                onClick={() => setStep(4)}
                                 className="btn-primary flex items-center gap-2"
                                 disabled={!config.templateName}
                             >
@@ -486,8 +652,8 @@ const CreatePaperPage = () => {
                     </div>
                 )}
 
-                {/* STEP 3: Configure Paper */}
-                {step === 3 && (
+                {/* STEP 4: Configure Paper */}
+                {step === 4 && (
                     <div className="space-y-8">
                         <div className="mb-8">
                             <h2 className="text-3xl font-bold text-black mb-2">Configure Your Paper</h2>
@@ -644,8 +810,8 @@ const CreatePaperPage = () => {
                     </div>
                 )}
 
-                {/* STEP 4: Generate & Preview */}
-                {step === 4 && (
+                {/* STEP 5: Generate & Preview */}
+                {step === 5 && (
                     <div className="space-y-8">
                         <div className="flex justify-between items-center">
                             <div>
