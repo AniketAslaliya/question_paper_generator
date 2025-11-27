@@ -553,36 +553,105 @@ router.get('/my', auth, async (req, res) => {
 
 // Add Important Question
 router.post('/:id/important-questions', auth, async (req, res) => {
+    // Log incoming request
+    console.log('📥 POST /:id/important-questions received:', {
+        paperId: req.params.id,
+        body: req.body,
+        userId: req.user?.id
+    });
+
     try {
         const { question, questionType, notes } = req.body;
         
-        if (!question || !question.trim()) {
-            return res.status(400).json({ message: 'Question is required' });
+        // Validate required fields
+        if (!question || (typeof question === 'string' && !question.trim())) {
+            console.log('❌ Validation failed: Question is required');
+            return res.status(400).json({ 
+                message: 'Missing required field: question',
+                error: 'VALIDATION_ERROR',
+                received: { question, questionType, notes }
+            });
+        }
+
+        // Validate paperId
+        if (!req.params.id) {
+            console.log('❌ Validation failed: Paper ID is required');
+            return res.status(400).json({ 
+                message: 'Paper ID is required',
+                error: 'MISSING_PAPER_ID'
+            });
+        }
+
+        // Validate paperId format
+        if (!req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
+            console.log('❌ Validation failed: Invalid Paper ID format');
+            return res.status(400).json({ 
+                message: 'Invalid Paper ID format',
+                error: 'INVALID_PAPER_ID',
+                received: req.params.id
+            });
         }
 
         const paper = await Paper.findById(req.params.id);
-        if (!paper) return res.status(404).json({ message: 'Paper not found' });
-        if (paper.userId.toString() !== req.user.id) return res.status(401).json({ message: 'Unauthorized' });
-
-        paper.importantQuestions = paper.importantQuestions || [];
-        paper.importantQuestions.push({
-            question: question.trim(),
-            questionType: questionType || 'Important',
-            addedBy: req.user.id,
-            notes: notes || ''
+        
+        console.log('📄 Paper lookup result:', {
+            found: !!paper,
+            paperId: req.params.id
         });
 
+        if (!paper) {
+            return res.status(404).json({ 
+                message: 'Paper not found',
+                error: 'PAPER_NOT_FOUND',
+                paperId: req.params.id
+            });
+        }
+        
+        if (paper.userId.toString() !== req.user.id) {
+            console.log('❌ Authorization failed:', {
+                paperUserId: paper.userId.toString(),
+                requestUserId: req.user.id
+            });
+            return res.status(401).json({ 
+                message: 'Unauthorized: You do not own this paper',
+                error: 'UNAUTHORIZED'
+            });
+        }
+
+        // Initialize importantQuestions array if not exists
+        if (!paper.importantQuestions) {
+            paper.importantQuestions = [];
+        }
+
+        // Normalize questionType to valid values
+        const validTypes = ['Reference', 'Important', 'Numerical', 'Specific', 'Theoretical', 'Conceptual', 'Application'];
+        const normalizedType = validTypes.includes(questionType) ? questionType : 'Important';
+
+        const newQuestion = {
+            question: question.trim(),
+            questionType: normalizedType,
+            addedBy: req.user.id,
+            addedAt: new Date(),
+            notes: notes || ''
+        };
+
+        console.log('💾 Adding question:', newQuestion);
+
+        paper.importantQuestions.push(newQuestion);
+
         await paper.save();
+        
+        console.log('✅ Question added successfully');
 
         try {
             if (req.logActivity) {
                 await req.logActivity('important_question_added', { 
                     paperId: paper.id,
-                    questionType: questionType || 'Important'
+                    questionType: normalizedType
                 });
             }
         } catch (logError) {
-            console.warn('Failed to log activity:', logError.message);
+            console.warn('⚠️ Failed to log activity:', logError.message);
             // Don't fail the request if logging fails
         }
 
@@ -591,8 +660,29 @@ router.post('/:id/important-questions', auth, async (req, res) => {
             importantQuestion: paper.importantQuestions[paper.importantQuestions.length - 1]
         });
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ message: 'Server Error', error: err.message });
+        console.error('❌ Error in POST /:id/important-questions:', err);
+        
+        // Check for specific Mongoose errors
+        if (err.name === 'ValidationError') {
+            return res.status(400).json({ 
+                message: 'Validation error: ' + err.message,
+                error: 'VALIDATION_ERROR',
+                details: err.errors
+            });
+        }
+        
+        if (err.name === 'CastError') {
+            return res.status(400).json({ 
+                message: 'Invalid ID format',
+                error: 'CAST_ERROR',
+                details: err.message
+            });
+        }
+        
+        res.status(500).json({ 
+            message: 'Server Error: ' + err.message,
+            error: 'SERVER_ERROR'
+        });
     }
 });
 

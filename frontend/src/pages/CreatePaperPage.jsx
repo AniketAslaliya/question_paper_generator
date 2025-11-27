@@ -154,18 +154,33 @@ const CreatePaperPage = () => {
     };
 
     const handleAddImportantQuestion = async (question, questionType = 'Important', notes = '') => {
+        if (!paperId) {
+            alert('Please upload files first before adding questions.');
+            return;
+        }
+        
+        if (!question || !question.trim()) {
+            alert('Question text is required.');
+            return;
+        }
+
+        console.log('📤 Adding important question:', { paperId, question, questionType, notes });
+        
         try {
             const token = localStorage.getItem('token');
-            await axios.post(`${API_URL}/api/papers/${paperId}/important-questions`, {
-                question,
-                questionType,
-                notes
+            const response = await axios.post(`${API_URL}/api/papers/${paperId}/important-questions`, {
+                question: question.trim(),
+                questionType: questionType || 'Important',
+                notes: notes || ''
             }, { headers: { Authorization: `Bearer ${token}` } });
+            
+            console.log('✅ Question added:', response.data);
             await loadImportantQuestions();
             alert('Question added successfully!');
         } catch (err) {
-            console.error('Error adding question:', err);
-            alert('Failed to add question. Please try again.');
+            console.error('❌ Error adding question:', err.response?.data || err.message);
+            const errorMsg = err.response?.data?.message || err.message || 'Unknown error';
+            alert(`Failed to add question: ${errorMsg}`);
         }
     };
 

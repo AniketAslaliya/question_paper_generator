@@ -65,7 +65,7 @@ const paperSchema = new mongoose.Schema({
     },
     importantQuestions: [{
         question: { type: String, required: true },
-        questionType: { type: String, enum: ['Reference', 'Important', 'Numerical', 'Specific'] },
+        questionType: { type: String, default: 'Important' },
         addedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
         addedAt: { type: Date, default: Date.now },
         notes: String
