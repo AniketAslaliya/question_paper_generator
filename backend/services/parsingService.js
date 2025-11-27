@@ -121,6 +121,7 @@ ${text.substring(0, 30000)}`;
         const responseText = response.text();
 
         console.log('✅ Gemini API response received');
+        console.log('📝 API Response (first 500 chars):', responseText.substring(0, 500));
 
         // Clean and parse JSON
         let cleanText = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
