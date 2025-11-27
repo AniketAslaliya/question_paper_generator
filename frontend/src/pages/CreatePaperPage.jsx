@@ -95,6 +95,11 @@ const CreatePaperPage = () => {
                                 setGeneratedContent(latestVersion.generatedContentHTML || '');
                                 setStep(4);
                             }
+                        } else if (status.status === 'failed') {
+                            // Show error message
+                            const errorMsg = status.error || 'Paper generation failed. Please try again.';
+                            console.error('Generation failed:', errorMsg);
+                            alert(`Generation failed: ${errorMsg}`);
                         }
                         setLoading(false);
                     }
@@ -186,6 +191,19 @@ const CreatePaperPage = () => {
     };
 
     const handleGenerate = async () => {
+        // Validate sections before generating
+        if (!config.sections || config.sections.length === 0) {
+            alert('Please configure at least one section before generating the paper.');
+            return;
+        }
+
+        // Validate each section has required fields
+        const invalidSections = config.sections.filter(s => !s.name || !s.marks || !s.questionCount);
+        if (invalidSections.length > 0) {
+            alert('Please ensure all sections have a name, marks, and question count configured.');
+            return;
+        }
+
         setLoading(true);
         setGenerationStatus({ status: 'generating', progress: 0 });
         try {
@@ -196,10 +214,13 @@ const CreatePaperPage = () => {
                 const configToSave = {
                     ...config,
                     sections: config.sections || [],
-                    cifData
+                    cifData,
+                    marks: config.marks || 100,
+                    duration: config.duration || '3 Hours'
                 };
                 console.log('💾 Saving config with sections:', configToSave.sections?.length || 0, 'sections');
                 console.log('📋 Sections details:', configToSave.sections);
+                console.log('📋 Total marks:', configToSave.marks);
                 await axios.post(`${API_URL}/api/papers/create-phase2`, {
                     paperId,
                     config: configToSave

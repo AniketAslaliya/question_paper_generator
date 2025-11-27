@@ -192,6 +192,14 @@ router.post('/create-phase1-multi', auth, upload.array('files', 10), async (req,
 router.post('/create-phase2', auth, async (req, res) => {
     const { paperId, config } = req.body;
     
+    // Log incoming request
+    console.log('📥 create-phase2 request received:', {
+        paperId,
+        hasConfig: !!config,
+        configKeys: config ? Object.keys(config) : [],
+        sectionsCount: config?.sections?.length || 0
+    });
+    
     // Validate input
     if (!paperId) {
         return res.status(400).json({ message: 'Paper ID is required' });
@@ -208,9 +216,12 @@ router.post('/create-phase2', auth, async (req, res) => {
             console.warn(`⚠️ Section marks (${totalMarks}) do not match total marks (${expectedMarks})`);
             // Don't fail, just warn - let it proceed
         }
-        console.log(`✅ Saving ${config.sections.length} sections:`, config.sections.map(s => `${s.name}: ${s.questionCount} questions, ${s.marks} marks`).join(', '));
+        console.log(`✅ Saving ${config.sections.length} sections:`, config.sections.map(s => `${s.name}: ${s.questionCount} questions, ${s.marks} marks, type: ${s.questionType}`).join(', '));
     } else {
-        console.warn('⚠️ No sections found in config');
+        console.warn('⚠️ No sections found in config:', { 
+            hasSections: !!config.sections,
+            isArray: Array.isArray(config.sections)
+        });
     }
     
     try {
@@ -218,16 +229,32 @@ router.post('/create-phase2', auth, async (req, res) => {
         if (!paper) return res.status(404).json({ message: 'Paper not found' });
         if (paper.userId.toString() !== req.user.id) return res.status(401).json({ message: 'Unauthorized' });
 
+        // Log what we're about to save
+        console.log('💾 Saving config to paper:', {
+            marks: config.marks,
+            duration: config.duration,
+            sectionsCount: config.sections?.length || 0,
+            sections: config.sections
+        });
+
         // Ensure sections are preserved
         paper.config = {
             ...config,
             sections: config.sections || []
         };
         paper.templateUsed = config.templateName || 'Custom';
+        
         await paper.save();
+        
+        // Verify save was successful
+        const savedPaper = await Paper.findById(paperId);
+        console.log('✅ Config saved and verified:', {
+            paperId,
+            savedSectionsCount: savedPaper.config?.sections?.length || 0,
+            savedSections: savedPaper.config?.sections
+        });
 
-        console.log(`✅ Config saved for paper ${paperId} with ${paper.config.sections?.length || 0} sections`);
-        res.json({ message: 'Configuration saved', paper });
+        res.json({ message: 'Configuration saved', paper: savedPaper });
     } catch (err) {
         console.error('❌ Error saving config:', err);
         res.status(500).json({ message: 'Server Error', error: err.message });
@@ -237,20 +264,59 @@ router.post('/create-phase2', auth, async (req, res) => {
 // Phase 3: Generate Paper
 router.post('/create-phase3', auth, async (req, res) => {
     const { paperId } = req.body;
+    
+    // Log incoming request
+    console.log('📥 create-phase3 request received:', {
+        paperId,
+        userId: req.user?.id,
+        body: JSON.stringify(req.body)
+    });
+    
+    // Validate paperId
+    if (!paperId) {
+        console.log('❌ Missing paperId in request');
+        return res.status(400).json({ 
+            message: 'Paper ID is required',
+            error: 'MISSING_PAPER_ID',
+            received: req.body
+        });
+    }
+    
     try {
         console.log('📝 Generating paper for user:', req.user.id, 'Paper ID:', paperId);
 
         const paper = await Paper.findById(paperId);
         if (!paper) {
             console.log('❌ Paper not found:', paperId);
-            return res.status(404).json({ message: 'Paper not found' });
+            return res.status(404).json({ 
+                message: 'Paper not found',
+                error: 'PAPER_NOT_FOUND',
+                paperId 
+            });
         }
 
-        console.log('✅ Paper found, starting generation...');
+        console.log('✅ Paper found:', {
+            id: paper._id,
+            hasConfig: !!paper.config,
+            hasExtractedData: !!paper.extractedData,
+            configSections: paper.config?.sections?.length || 0
+        });
         
         // Validate extractedData and textChunks
         if (!paper.extractedData || !paper.extractedData.textChunks || paper.extractedData.textChunks.length === 0) {
-            return res.status(400).json({ message: 'No text content found. Please upload files first.' });
+            console.log('❌ No text content found:', {
+                hasExtractedData: !!paper.extractedData,
+                hasTextChunks: !!paper.extractedData?.textChunks,
+                textChunksLength: paper.extractedData?.textChunks?.length || 0
+            });
+            return res.status(400).json({ 
+                message: 'No text content found. Please upload files first.',
+                error: 'NO_TEXT_CONTENT',
+                details: {
+                    hasExtractedData: !!paper.extractedData,
+                    hasTextChunks: !!paper.extractedData?.textChunks
+                }
+            });
         }
         
         // Update generation status - START
@@ -271,7 +337,9 @@ router.post('/create-phase3', auth, async (req, res) => {
             paper.generationStatus.error = 'Insufficient content extracted from files';
             await paper.save();
             return res.status(400).json({ 
-                message: 'Insufficient content extracted from files. Please upload files with readable text content.' 
+                message: 'Insufficient content extracted from files. Please upload files with readable text content.',
+                error: 'INSUFFICIENT_CONTENT',
+                textLength: extractedText?.length || 0
             });
         }
 
@@ -279,16 +347,30 @@ router.post('/create-phase3', auth, async (req, res) => {
             paperId: paper.id,
             textLength: extractedText.length,
             sections: paper.config.sections?.length || 0,
-            totalMarks: paper.config.marks
+            totalMarks: paper.config.marks,
+            hasConfig: !!paper.config,
+            configKeys: Object.keys(paper.config || {})
         });
 
         // Validate sections exist before generation
-        if (!paper.config.sections || !Array.isArray(paper.config.sections) || paper.config.sections.length === 0) {
+        if (!paper.config || !paper.config.sections || !Array.isArray(paper.config.sections) || paper.config.sections.length === 0) {
+            console.log('❌ No sections configured:', {
+                hasConfig: !!paper.config,
+                hasSections: !!paper.config?.sections,
+                sectionsIsArray: Array.isArray(paper.config?.sections),
+                sectionsLength: paper.config?.sections?.length || 0
+            });
             paper.generationStatus.status = 'failed';
             paper.generationStatus.error = 'No sections configured';
             await paper.save();
             return res.status(400).json({ 
-                message: 'No sections configured. Please configure at least one section before generating.' 
+                message: 'No sections configured. Please configure at least one section before generating.',
+                error: 'NO_SECTIONS',
+                details: {
+                    hasConfig: !!paper.config,
+                    hasSections: !!paper.config?.sections,
+                    sectionsLength: paper.config?.sections?.length || 0
+                } 
             });
         }
 

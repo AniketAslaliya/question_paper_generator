@@ -7,11 +7,28 @@ const paperSchema = new mongoose.Schema({
     subject: { type: String },
     templateUsed: { type: String },
     config: {
+        templateName: String,
         marks: Number,
+        duration: String,
         difficulty: {
             easy: Number,
             medium: Number,
             hard: Number
+        },
+        sections: [{
+            name: String,
+            marks: Number,
+            questionCount: Number,
+            questionType: String,
+            instructions: String
+        }],
+        bloomsTaxonomy: {
+            remember: Number,
+            understand: Number,
+            apply: Number,
+            analyze: Number,
+            evaluate: Number,
+            create: Number
         },
         weightage: Object,
         questionTypes: [String],

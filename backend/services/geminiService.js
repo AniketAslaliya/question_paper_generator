@@ -52,6 +52,14 @@ const generatePaper = async ({
 
   const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
+  // Ensure templateConfig has defaults
+  const safeTemplateConfig = {
+    marks: templateConfig?.marks || 100,
+    duration: templateConfig?.duration || duration || '3 Hours',
+    templateName: templateConfig?.templateName || 'Question Paper',
+    ...templateConfig
+  };
+
   // Build detailed section requirements
   const sectionsInfo = sections.map(s => {
     const typeNote = s.questionType === 'Mixed' 
@@ -145,8 +153,8 @@ COURSE CONTENT (Analyze this carefully and create questions from it):
 ${textToUse.substring(0, 40000)}
 
 PAPER REQUIREMENTS - FOLLOW EXACTLY:
-- Total Marks: ${templateConfig.marks}
-- Duration: ${duration || templateConfig.duration || '3 Hours'}
+- Total Marks: ${safeTemplateConfig.marks}
+- Duration: ${duration || safeTemplateConfig.duration || '3 Hours'}
 - Total Questions: ${totalQuestions}
 
 SECTION BREAKDOWN (CRITICAL - FOLLOW EXACTLY):
@@ -159,7 +167,7 @@ ${s.name}:
   - Instructions: ${s.instructions}
 `).join('\n')}
 
-- Difficulty Distribution: Easy ${difficulty.easy}%, Medium ${difficulty.medium}%, Hard ${difficulty.hard}%
+- Difficulty Distribution: Easy ${difficulty?.easy || 30}%, Medium ${difficulty?.medium || 50}%, Hard ${difficulty?.hard || 20}%
 - Bloom's Taxonomy: ${bloomsInfo}
 ${mandatoryList.length > 0 ? `- Mandatory Exercises: ${JSON.stringify(mandatoryList)}` : ''}
 ${cifContext || ''}
@@ -176,11 +184,11 @@ CRITICAL QUESTION TYPE RULES:
 
 OUTPUT FORMAT - Return ONLY valid JSON (no markdown, no code blocks):
 {
-  "title": "${cifData?.subjectName || templateConfig.templateName || 'Question Paper'}",
+  "title": "${cifData?.subjectName || safeTemplateConfig.templateName || 'Question Paper'}",
   "subjectName": "${cifData?.subjectName || 'Subject Name'}",
   "instructions": "Answer all questions. All questions carry equal marks unless specified.",
-  "totalMarks": ${templateConfig.marks},
-  "duration": "${duration || templateConfig.duration || '3 Hours'}",
+  "totalMarks": ${safeTemplateConfig.marks},
+  "duration": "${duration || safeTemplateConfig.duration || '3 Hours'}",
   "sections": [
     ${sectionsDetail.map(s => `{
       "name": "${s.name}",
@@ -205,7 +213,7 @@ CRITICAL VALIDATION REQUIREMENTS:
 - Each section MUST have EXACTLY the specified number of questions (no more, no less)
 - Each section MUST have ONLY the specified question type (unless Mixed)
 - Each question MUST have the exact marks specified for that section (${sectionsDetail.map(s => `${s.name}: ${s.marksPerQuestion.toFixed(1)} marks per question`).join(', ')})
-- Total marks across all sections MUST equal ${templateConfig.marks}
+- Total marks across all sections MUST equal ${safeTemplateConfig.marks}
 - DO NOT use weightage percentages to determine marks - use section configuration only
 
 FINAL REMINDER: Every question text must be a REAL question that references specific content. If you generate placeholders, the paper will be rejected.`;
@@ -214,7 +222,7 @@ FINAL REMINDER: Every question text must be a REAL question that references spec
     console.log('🤖 Calling Gemini API for paper generation...');
     console.log('📊 Configuration:', {
       sections: sections?.length || 0,
-      totalMarks: templateConfig.marks,
+      totalMarks: safeTemplateConfig.marks,
       extractedTextLength: textToUse.length,
       hasCIF: !!cifData,
       hasWeightage: !!weightage && Object.keys(weightage).length > 0
