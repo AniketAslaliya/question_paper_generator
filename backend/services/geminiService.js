@@ -30,29 +30,49 @@ const generatePaper = async ({
     throw new Error('GEMINI_API_KEY is not configured. Please set it in environment variables.');
   }
 
+  // Validate sections early
+  if (!sections || !Array.isArray(sections) || sections.length === 0) {
+    console.error('❌ No sections provided for paper generation');
+    throw new Error('No sections configured. Please configure at least one section before generating.');
+  }
+
+  // Log the input configuration
+  console.log('📋 Generating paper with configuration:', {
+    sectionsCount: sections.length,
+    sections: sections.map(s => ({
+      name: s.name,
+      marks: s.marks,
+      questionCount: s.questionCount,
+      questionType: s.questionType
+    })),
+    totalMarks: templateConfig?.marks,
+    hasExtractedText: !!extractedText && extractedText.length > 0,
+    textLength: extractedText?.length || 0
+  });
+
   const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
   // Build detailed section requirements
-  const sectionsInfo = sections ? sections.map(s => {
+  const sectionsInfo = sections.map(s => {
     const typeNote = s.questionType === 'Mixed' 
       ? 'Type: Mixed (can use any question type)' 
       : `CRITICAL: ALL ${s.questionCount} questions in ${s.name} MUST be ${s.questionType} type. NO EXCEPTIONS.`;
     
     const marksPerQuestion = s.questionCount > 0 ? (s.marks / s.questionCount) : s.marks;
     return `${s.name}: EXACTLY ${s.questionCount} questions, ${s.marks} total marks (${marksPerQuestion.toFixed(1)} marks per question), ${typeNote}`;
-  }).join('\n') : '';
+  }).join('\n');
   
-  const sectionsDetail = sections ? sections.map(s => {
+  const sectionsDetail = sections.map(s => {
     const marksPerQuestion = s.questionCount > 0 ? (s.marks / s.questionCount) : s.marks;
     return {
-      name: s.name,
-      questionCount: s.questionCount,
-      totalMarks: s.marks,
+      name: s.name || 'Section',
+      questionCount: s.questionCount || 1,
+      totalMarks: s.marks || 10,
       marksPerQuestion: marksPerQuestion,
-      questionType: s.questionType,
+      questionType: s.questionType || 'Theoretical',
       instructions: s.instructions || `Answer all questions from this section`
     };
-  }) : [];
+  });
   const bloomsInfo = bloomsTaxonomy ? Object.entries(bloomsTaxonomy).map(([level, percent]) => `${level}: ${percent}%`).join(', ') : 'Not specified';
 
   const previousQuestionsContext = previousVersions.length > 0
@@ -67,8 +87,8 @@ const generatePaper = async ({
     ? `\n\nIMPORTANT TOPICS (MUST BE INCLUDED WITH HIGH PRIORITY):\n${importantTopics}`
     : '';
 
-  const cifContext = cifData
-    ? `\n\nSUBJECT INFORMATION FROM CIF:\nSubject: ${cifData.subjectName}\nTopics: ${cifData.topics.map(t => t.name).join(', ')}\n\nNote: Topic weightage percentages are for reference only. Section configuration takes absolute priority.`
+  const cifContext = cifData && cifData.subjectName
+    ? `\n\nSUBJECT INFORMATION FROM CIF:\nSubject: ${cifData.subjectName}\nTopics: ${cifData.topics?.map(t => t.name).join(', ') || 'Not specified'}\n\nNote: Topic weightage percentages are for reference only. Section configuration takes absolute priority.`
     : '';
 
   // Validate extracted text
@@ -80,7 +100,13 @@ const generatePaper = async ({
   const textToUse = extractedText.length > 50000 ? extractedText.substring(0, 50000) : extractedText;
   
   // Calculate total questions
-  const totalQuestions = sections ? sections.reduce((sum, s) => sum + (s.questionCount || 0), 0) : 0;
+  const totalQuestions = sections.reduce((sum, s) => sum + (s.questionCount || 0), 0);
+  
+  console.log('📊 Paper generation details:', {
+    totalQuestions,
+    sectionsDetailCount: sectionsDetail.length,
+    textLength: textToUse.length
+  });
   
   // NOTE: Weightage is IGNORED - sections configuration takes absolute priority
   // Questions should be distributed based on important topics, not weightage percentages
@@ -467,6 +493,14 @@ const enhanceHTMLStyling = (jsonData) => {
       white-space: nowrap;
       margin-left: 10px;
     }
+    .error {
+      color: #d32f2f;
+      font-style: italic;
+      padding: 10px;
+      background: #ffebee;
+      border-left: 4px solid #d32f2f;
+      margin: 10px 0;
+    }
   </style>
 </head>
 <body>
@@ -485,19 +519,19 @@ const enhanceHTMLStyling = (jsonData) => {
     ${jsonData?.instructions || '1. Answer all questions.\n2. Figures to the right indicate full marks.'}
   </div>
   
-  ${jsonData?.sections?.map((section) => `
+  ${(jsonData?.sections && Array.isArray(jsonData.sections) && jsonData.sections.length > 0) ? jsonData.sections.map((section) => `
     <div class="section">
-      <div class="section-title">${section.name}</div>
-      ${section.instructions ? `<p style="margin-bottom:15px; font-style:italic;">${section.instructions}</p>` : ''}
-      ${section.questions?.map((q) => `
+      <div class="section-title">${section?.name || 'Section'}</div>
+      ${section?.instructions ? `<p style="margin-bottom:15px; font-style:italic;">${section.instructions}</p>` : ''}
+      ${(section?.questions && Array.isArray(section.questions) && section.questions.length > 0) ? section.questions.map((q) => `
         <div class="question">
-          <div class="q-num">${q.id}.</div>
-          <div class="q-text">${q.text}</div>
-          <div class="q-marks">[${q.marks}]</div>
+          <div class="q-num">${q?.id || '?'}.</div>
+          <div class="q-text">${q?.text || '[Question text not generated]'}</div>
+          <div class="q-marks">[${q?.marks || '?'}]</div>
         </div>
-      `).join('')}
+      `).join('') : '<p class="error">No questions generated for this section</p>'}
     </div>
-  `).join('')}
+  `).join('') : '<p class="error">No sections were generated. Please try regenerating the paper.</p>'}
   
   <div style="text-align: center; margin-top: 50px; border-top: 1px solid #000; padding-top: 10px;">
     *** END OF PAPER ***
@@ -604,24 +638,24 @@ const enhanceAnswerKeyStyling = (jsonData) => {
     <div>Max. Marks: ${jsonData?.totalMarks || 100}</div>
   </div>
   
-  ${jsonData?.sections?.map((section) => `
+  ${(jsonData?.sections && Array.isArray(jsonData.sections) && jsonData.sections.length > 0) ? jsonData.sections.map((section) => `
     <div class="section">
-      <div class="section-title">${section.name}</div>
-      ${section.questions?.map((q) => `
+      <div class="section-title">${section?.name || 'Section'}</div>
+      ${(section?.questions && Array.isArray(section.questions) && section.questions.length > 0) ? section.questions.map((q) => `
         <div class="question">
           <div class="q-header">
-            <span>Q${q.id}.</span>
-            <span>[${q.marks} Marks]</span>
+            <span>Q${q?.id || '?'}.</span>
+            <span>[${q?.marks || '?'} Marks]</span>
           </div>
-          <div class="q-text">${q.text}</div>
+          <div class="q-text">${q?.text || '[Question text not generated]'}</div>
           <div class="answer-box">
             <span class="answer-label">Model Answer:</span>
-            ${q.answer || 'No answer provided.'}
+            ${q?.answer || 'No answer provided.'}
           </div>
         </div>
-      `).join('')}
+      `).join('') : '<p class="error">No questions generated for this section</p>'}
     </div>
-  `).join('')}
+  `).join('') : '<p class="error">No sections were generated.</p>'}
   
   <div style="text-align: center; margin-top: 50px; border-top: 1px solid #000; padding-top: 10px; color: #d32f2f;">
     *** CONFIDENTIAL - FOR EVALUATOR USE ONLY ***

@@ -282,6 +282,24 @@ router.post('/create-phase3', auth, async (req, res) => {
             totalMarks: paper.config.marks
         });
 
+        // Validate sections exist before generation
+        if (!paper.config.sections || !Array.isArray(paper.config.sections) || paper.config.sections.length === 0) {
+            paper.generationStatus.status = 'failed';
+            paper.generationStatus.error = 'No sections configured';
+            await paper.save();
+            return res.status(400).json({ 
+                message: 'No sections configured. Please configure at least one section before generating.' 
+            });
+        }
+
+        // Log section details for debugging
+        console.log('📋 Section configuration:', paper.config.sections.map(s => ({
+            name: s.name,
+            marks: s.marks,
+            questionCount: s.questionCount,
+            questionType: s.questionType
+        })));
+
         // Auto-save progress: Update status to 30%
         paper.generationStatus.progress = 30;
         await paper.save();
@@ -395,6 +413,13 @@ router.post('/:id/regenerate', auth, async (req, res) => {
             sections: paper.config.sections?.length || 0,
             previousVersions: paper.versions?.length || 0
         });
+
+        // Validate sections exist before regeneration
+        if (!paper.config.sections || !Array.isArray(paper.config.sections) || paper.config.sections.length === 0) {
+            return res.status(400).json({ 
+                message: 'No sections configured. Please configure at least one section before regenerating.' 
+            });
+        }
 
         const generatedData = await generatePaper({
             extractedText: extractedText,
