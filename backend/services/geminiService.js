@@ -32,12 +32,27 @@ const generatePaper = async ({
 
   const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
+  // Build detailed section requirements
   const sectionsInfo = sections ? sections.map(s => {
     const typeNote = s.questionType === 'Mixed' 
       ? 'Type: Mixed (can use any question type)' 
-      : `REQUIRED TYPE: ${s.questionType} (ALL ${s.questionCount} questions in this section MUST be ${s.questionType} type)`;
-    return `${s.name}: ${s.questionCount} questions, ${s.marks} marks, ${typeNote}`;
-  }).join('; ') : '';
+      : `CRITICAL: ALL ${s.questionCount} questions in ${s.name} MUST be ${s.questionType} type. NO EXCEPTIONS.`;
+    
+    const marksPerQuestion = s.questionCount > 0 ? (s.marks / s.questionCount) : s.marks;
+    return `${s.name}: EXACTLY ${s.questionCount} questions, ${s.marks} total marks (${marksPerQuestion.toFixed(1)} marks per question), ${typeNote}`;
+  }).join('\n') : '';
+  
+  const sectionsDetail = sections ? sections.map(s => {
+    const marksPerQuestion = s.questionCount > 0 ? (s.marks / s.questionCount) : s.marks;
+    return {
+      name: s.name,
+      questionCount: s.questionCount,
+      totalMarks: s.marks,
+      marksPerQuestion: marksPerQuestion,
+      questionType: s.questionType,
+      instructions: s.instructions || `Answer all questions from this section`
+    };
+  }) : [];
   const bloomsInfo = bloomsTaxonomy ? Object.entries(bloomsTaxonomy).map(([level, percent]) => `${level}: ${percent}%`).join(', ') : 'Not specified';
 
   const previousQuestionsContext = previousVersions.length > 0
@@ -63,8 +78,18 @@ const generatePaper = async ({
   }
 
   const textToUse = extractedText.length > 50000 ? extractedText.substring(0, 50000) : extractedText;
+  // Build weightage distribution info
   const weightageInfo = weightage && Object.keys(weightage).length > 0
-    ? `\n\nCHAPTER/TOPIC WEIGHTAGE (DISTRIBUTE QUESTIONS ACCORDINGLY):\n${Object.entries(weightage).map(([chapter, weight]) => `- ${chapter}: ${weight}%`).join('\n')}`
+    ? `\n\nCHAPTER/TOPIC WEIGHTAGE (MUST DISTRIBUTE QUESTIONS ACCORDING TO THESE PERCENTAGES):\n${Object.entries(weightage).map(([chapter, weight]) => `- ${chapter}: ${weight}% of total questions`).join('\n')}\n\nIMPORTANT: If Section A has 10 questions and Chapter 1 has 30% weightage, then Chapter 1 should have approximately 3 questions in Section A.`
+    : '';
+  
+  // Calculate question distribution per topic
+  const totalQuestions = sections ? sections.reduce((sum, s) => sum + (s.questionCount || 0), 0) : 0;
+  const questionDistribution = weightage && Object.keys(weightage).length > 0 && totalQuestions > 0
+    ? Object.entries(weightage).map(([chapter, weight]) => {
+        const questionsForChapter = Math.round((weight / 100) * totalQuestions);
+        return `- ${chapter} (${weight}%): Approximately ${questionsForChapter} questions across all sections`;
+      }).join('\n')
     : '';
 
   // Build a more detailed prompt with examples
@@ -100,24 +125,35 @@ ${exampleQuestions}
 COURSE CONTENT (Analyze this carefully and create questions from it):
 ${textToUse.substring(0, 40000)}
 
-PAPER REQUIREMENTS:
+PAPER REQUIREMENTS - FOLLOW EXACTLY:
 - Total Marks: ${templateConfig.marks}
 - Duration: ${duration || templateConfig.duration || '3 Hours'}
-- Sections: ${sectionsInfo}
+- Total Questions: ${totalQuestions}
+
+SECTION BREAKDOWN (CRITICAL - FOLLOW EXACTLY):
+${sectionsDetail.map(s => `
+${s.name}:
+  - Question Count: EXACTLY ${s.questionCount} questions (NO MORE, NO LESS)
+  - Total Marks: ${s.totalMarks} marks
+  - Marks per Question: ${s.marksPerQuestion.toFixed(1)} marks
+  - Question Type: ${s.questionType === 'Multiple Choice' ? 'ALL questions MUST be Multiple Choice with 4 options (a, b, c, d)' : s.questionType === 'Numerical' ? 'ALL questions MUST be Numerical problems with calculations' : s.questionType === 'Theoretical' ? 'ALL questions MUST be Theoretical/Descriptive' : 'Mixed types allowed'}
+  - Instructions: ${s.instructions}
+`).join('\n')}
+
 - Difficulty Distribution: Easy ${difficulty.easy}%, Medium ${difficulty.medium}%, Hard ${difficulty.hard}%
 - Bloom's Taxonomy: ${bloomsInfo}
 ${mandatoryList.length > 0 ? `- Mandatory Exercises: ${JSON.stringify(mandatoryList)}` : ''}
 ${weightageInfo}
+${questionDistribution ? `\nQUESTION DISTRIBUTION BY TOPIC:\n${questionDistribution}` : ''}
 ${cifContext}
 ${importantTopicsContext}
 ${referenceContext ? `\nReference Questions (use as style guide):\n${referenceContext}` : ''}
 ${previousQuestionsContext}
 
-QUESTION TYPE REQUIREMENTS:
-${sectionsInfo.split('; ').map(s => `- ${s}`).join('\n')}
-- For Multiple Choice: Include 4 options (a, b, c, d) in the question text
-- For Numerical: Include all necessary values and ask for calculations
-- For Theoretical: Ask for explanations, comparisons, derivations, or analyses
+CRITICAL QUESTION TYPE RULES:
+- Multiple Choice: Each question MUST have exactly 4 options labeled (a), (b), (c), (d) in the question text
+- Numerical: Each question MUST include specific numerical values and ask for calculations with units
+- Theoretical: Each question MUST ask for explanations, comparisons, derivations, or detailed analyses (not just definitions)
 
 OUTPUT FORMAT - Return ONLY valid JSON (no markdown, no code blocks):
 {
@@ -179,6 +215,50 @@ FINAL REMINDER: Every question text must be a REAL question that references spec
       // Validate the parsed structure
       if (!parsed.sections || !Array.isArray(parsed.sections) || parsed.sections.length === 0) {
         throw new Error('Invalid structure: No sections found in AI response');
+      }
+
+      // Validate section configuration matches requirements
+      if (sections && sections.length > 0) {
+        const validationErrors = [];
+        
+        sections.forEach((requiredSection, idx) => {
+          const generatedSection = parsed.sections[idx];
+          
+          if (!generatedSection) {
+            validationErrors.push(`Missing section: ${requiredSection.name}`);
+            return;
+          }
+          
+          // Check question count
+          const actualCount = generatedSection.questions?.length || 0;
+          if (actualCount !== requiredSection.questionCount) {
+            validationErrors.push(`${requiredSection.name}: Expected ${requiredSection.questionCount} questions, got ${actualCount}`);
+          }
+          
+          // Check question types (if not Mixed)
+          if (requiredSection.questionType !== 'Mixed' && generatedSection.questions) {
+            const wrongTypeQuestions = generatedSection.questions.filter(q => {
+              const qType = (q.type || '').toLowerCase();
+              const requiredType = requiredSection.questionType.toLowerCase();
+              return qType !== requiredType && qType !== 'mixed';
+            });
+            
+            if (wrongTypeQuestions.length > 0) {
+              validationErrors.push(`${requiredSection.name}: ${wrongTypeQuestions.length} questions have wrong type. All must be ${requiredSection.questionType}`);
+            }
+          }
+          
+          // Check marks
+          const sectionMarks = generatedSection.questions?.reduce((sum, q) => sum + (parseFloat(q.marks) || 0), 0) || 0;
+          if (Math.abs(sectionMarks - requiredSection.marks) > 1) {
+            validationErrors.push(`${requiredSection.name}: Expected ${requiredSection.marks} marks, got ${sectionMarks.toFixed(1)}`);
+          }
+        });
+        
+        if (validationErrors.length > 0) {
+          console.warn('⚠️ Configuration validation errors:', validationErrors);
+          // Don't throw error, but log it - AI might have slight variations
+        }
       }
 
       // Validate questions are real, not placeholders

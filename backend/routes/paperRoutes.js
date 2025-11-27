@@ -460,14 +460,22 @@ router.post('/:id/important-questions', auth, async (req, res) => {
 
         await paper.save();
 
-        if (req.logActivity) {
-            await req.logActivity('important_question_added', { 
-                paperId: paper.id,
-                questionType: questionType || 'Important'
-            });
+        try {
+            if (req.logActivity) {
+                await req.logActivity('important_question_added', { 
+                    paperId: paper.id,
+                    questionType: questionType || 'Important'
+                });
+            }
+        } catch (logError) {
+            console.warn('Failed to log activity:', logError.message);
+            // Don't fail the request if logging fails
         }
 
-        res.json({ message: 'Important question added', paper });
+        res.json({ 
+            message: 'Important question added', 
+            importantQuestion: paper.importantQuestions[paper.importantQuestions.length - 1]
+        });
     } catch (err) {
         console.error(err);
         res.status(500).json({ message: 'Server Error', error: err.message });

@@ -18,31 +18,46 @@ const parseCIF = async (text) => {
 
         const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-        const prompt = `You are an expert at parsing Course Information Files (CIF). Extract the following information from the provided text:
+        const prompt = `You are an expert at parsing Course Information Files (CIF). Extract ONLY academic course information from the provided text.
 
-1. Subject/Course Name
-2. All Units/Modules/Topics with their weightage percentages
+EXTRACT:
+1. Subject/Course Name (ONLY the academic subject name, NOT teacher names, NOT author names)
+2. All Units/Modules/Topics/Chapters with their weightage percentages
 3. Any additional course details
 
-Extract ALL topics/units/modules, even if they are in different formats. Look for:
-- Unit/Module/Topic followed by numbers and names
+DO NOT EXTRACT:
+- Teacher names, instructor names, author names
+- Student names
+- Institution names (unless part of course title)
+- Dates, timestamps
+- Email addresses, contact information
+- Generic words like "Subject", "Course", "Paper" as topic names
+
+EXTRACTION RULES:
+- Look for Unit/Module/Topic/Chapter followed by numbers and descriptive names
 - Weightage percentages (can be written as %, percent, or just numbers)
 - Topics can be in tables, lists, or paragraphs
 - Topics might be numbered (1, 2, 3) or labeled (Unit 1, Module 1, etc.)
+- Topic names should be 5-100 characters, descriptive of course content
+- If a "topic" is just a name (like "Dr. John Smith") or generic word, SKIP IT
 
 Return a JSON object with this EXACT structure:
 {
-  "subjectName": "Full subject/course name",
+  "subjectName": "Full subject/course name (academic subject only)",
   "topics": [
     {
-      "name": "Complete topic/unit name",
+      "name": "Complete topic/unit name (must be academic content, 5-100 chars)",
       "weightage": 20
     }
   ],
   "additionalInfo": "Any other relevant course information"
 }
 
-IMPORTANT: Extract ALL topics found in the document. Do not skip any. If weightage is not specified for a topic, estimate it based on equal distribution or context.
+VALIDATION:
+- Each topic name must be 5-100 characters
+- Topic names must NOT be person names (check for patterns like "Dr.", "Prof.", titles)
+- Topic names must NOT be generic words like "Subject", "Course", "Paper", "Name"
+- If weightage is missing, estimate based on equal distribution
 
 Text to parse:
 ${text.substring(0, 30000)}`;
@@ -279,17 +294,42 @@ const extractChapters = (text) => {
         }
     });
 
+    // Patterns to exclude (teacher names, subject names, etc.)
+    const excludePatterns = [
+        /^(Dr\.|Prof\.|Mr\.|Mrs\.|Ms\.|Miss|Sir|Madam)\s+[A-Z]/i,
+        /^(Teacher|Instructor|Author|Subject|Course|Paper|Name|Title)[\s:]/i,
+        /^[A-Z][a-z]+\s+[A-Z][a-z]+$/, // Simple name patterns (First Last)
+        /@.*\.(com|edu|org)/i, // Email addresses
+        /^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}$/, // Dates
+    ];
+
+    const isExcluded = (name) => {
+        const trimmed = name.trim();
+        if (trimmed.length < 5 || trimmed.length > 150) return true;
+        return excludePatterns.some(pattern => pattern.test(trimmed));
+    };
+
+    // Filter chapters to exclude names and generic terms
+    const filteredChapters = chapters.filter(ch => {
+        const lower = ch.toLowerCase();
+        return !isExcluded(ch) &&
+               !lower.match(/^(subject|course|paper|name|title|teacher|instructor|author|dr\.|prof\.|mr\.|mrs\.|ms\.)/) &&
+               !lower.match(/^[a-z]+\s+[a-z]+$/) && // Simple name pattern
+               ch.length >= 5 && ch.length <= 150;
+    });
+
     // Remove duplicates and sort
-    const uniqueChapters = [...new Set(chapters)];
+    const uniqueChapters = [...new Set(filteredChapters)];
     
-    // If no chapters found, try to extract from headings
+    // If no chapters found, try to extract from headings (with better filtering)
     if (uniqueChapters.length === 0) {
         const lines = text.split(/\n|\r/);
         lines.forEach(line => {
             const trimmed = line.trim();
             if (trimmed.length > 10 && trimmed.length < 150 && 
                 trimmed.match(/^[A-Z][A-Za-z\s]{10,}/) &&
-                !trimmed.match(/^(Subject|Course|Paper|Table|Figure)/i)) {
+                !trimmed.match(/^(Subject|Course|Paper|Table|Figure|Teacher|Instructor|Author|Dr\.|Prof\.)/i) &&
+                !isExcluded(trimmed)) {
                 const key = trimmed.toLowerCase();
                 if (!seenChapters.has(key)) {
                     seenChapters.add(key);
@@ -299,7 +339,13 @@ const extractChapters = (text) => {
         });
     }
 
-    const finalChapters = uniqueChapters.slice(0, 30);
+    // Final filtering - remove any that look like names or generic terms
+    const finalChapters = uniqueChapters.filter(ch => {
+        const lower = ch.toLowerCase();
+        return !lower.match(/^(subject|course|paper|name|title|teacher|instructor|author|dr\.|prof\.|mr\.|mrs\.|ms\.)/) &&
+               !lower.match(/^[a-z]+\s+[a-z]+$/) && // Simple name pattern
+               ch.length >= 5 && ch.length <= 150;
+    }).slice(0, 50); // Limit to 50 chapters
     console.log(`✅ Chapter Extraction: Found ${finalChapters.length} chapters`);
     
     return finalChapters;
