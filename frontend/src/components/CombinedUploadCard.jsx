@@ -45,8 +45,15 @@ const CombinedUploadCard = ({ onUploadComplete, onCIFParsed }) => {
                 pdfType: res.data.pdfType
             });
             
+            // DEBUG: Check the condition
+            console.log('🔍 Condition check:');
+            console.log('   res.data.status === "error":', res.data.status === 'error');
+            console.log('   res.data.totalTopics === 0:', res.data.totalTopics === 0);
+            console.log('   Combined (should be FALSE):', res.data.status === 'error' || res.data.totalTopics === 0);
+            
             // Handle response
             if (res.data.status === 'error' || res.data.totalTopics === 0) {
+                console.warn('⚠️ ENTERING NO-TOPICS BRANCH');
                 console.warn('⚠️ CIF parsing returned no topics:', res.data.message);
                 setCifData({
                     ...res.data,
@@ -55,6 +62,7 @@ const CombinedUploadCard = ({ onUploadComplete, onCIFParsed }) => {
                     message: res.data.message || 'No topics extracted from PDF'
                 });
             } else {
+                console.log('✅ ENTERING SUCCESS BRANCH - Setting cifData with', res.data.topics?.length, 'topics');
                 setCifData(res.data);
             }
             
