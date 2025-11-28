@@ -3,11 +3,38 @@ import { Upload, FileCheck, X, Plus } from 'lucide-react';
 import axios from 'axios';
 import { API_URL } from '../api/axiosConfig';
 
-const CombinedUploadCard = ({ onUploadComplete, onCIFParsed }) => {
+const CombinedUploadCard = ({ onUploadComplete, onCIFParsed, paperId }) => {
     const [files, setFiles] = useState([]);
     const [cifFile, setCifFile] = useState(null);
     const [uploading, setUploading] = useState(false);
     const [cifData, setCifData] = useState(null);
+
+    /**
+     * Auto-save parsed CIF topics to the server as soon as parsing completes
+     * This ensures that the Topic Review step can fetch and display topics immediately
+     */
+    const autoSaveCifTopics = async (topics, paperId) => {
+        if (!paperId || !Array.isArray(topics) || topics.length === 0) {
+            console.log('⏭️ Skipping auto-save: no paperId or no topics to save');
+            return;
+        }
+
+        try {
+            const token = localStorage.getItem('token');
+            console.log(`💾 Auto-saving ${topics.length} parsed CIF topics to server...`);
+            
+            const response = await axios.post(
+                `${API_URL}/api/papers/${paperId}/confirm-cif-topics`,
+                { confirmedTopics: topics },
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            
+            console.log('✅ CIF topics auto-saved to server:', response.data);
+        } catch (err) {
+            console.error('⚠️ Failed to auto-save CIF topics:', err.message);
+            // Non-fatal error - topics are still in client state and will display
+        }
+    };
 
     const handleFileSelect = (e) => {
         const selectedFiles = Array.from(e.target.files);
@@ -64,6 +91,11 @@ const CombinedUploadCard = ({ onUploadComplete, onCIFParsed }) => {
             } else {
                 console.log('✅ ENTERING SUCCESS BRANCH - Setting cifData with', res.data.topics?.length, 'topics');
                 setCifData(res.data);
+                
+                // Auto-save topics to server if paperId is available
+                if (paperId && res.data.topics && res.data.topics.length > 0) {
+                    autoSaveCifTopics(res.data.topics, paperId);
+                }
             }
             
             onCIFParsed(res.data);

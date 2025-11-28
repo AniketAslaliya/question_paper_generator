@@ -573,6 +573,7 @@ const CreatePaperPage = () => {
                         <CombinedUploadCard
                             onUploadComplete={handleUploadComplete}
                             onCIFParsed={handleCIFParsed}
+                            paperId={paperId}
                         />
                     </div>
                 )}
