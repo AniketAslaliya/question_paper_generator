@@ -8,8 +8,17 @@ const TopicSummaryPreview = ({
     loading = false 
 }) => {
     const allAllowedTopics = [
-        ...cifTopics.map(t => ({ name: t.name, type: 'CIF', priority: 'Standard' })),
-        ...importantTopicsWithNotes.map(t => ({ name: t.topic, type: 'Important', priority: t.priority, notes: t.notes }))
+        ...cifTopics.map(t => ({ 
+            name: typeof t === 'string' ? t : t.name, 
+            type: 'CIF', 
+            priority: 'Standard' 
+        })),
+        ...importantTopicsWithNotes.map(t => ({ 
+            name: t.topic, 
+            type: 'Important', 
+            priority: t.priority, 
+            notes: t.notes 
+        }))
     ];
 
     const totalAllowedTopics = allAllowedTopics.length;
@@ -53,7 +62,7 @@ const TopicSummaryPreview = ({
                                     key={index}
                                     className="text-sm bg-white border border-blue-100 rounded px-3 py-2"
                                 >
-                                    {topic.name}
+                                    {typeof topic === 'string' ? topic : topic.name}
                                 </li>
                             ))}
                         </ul>
