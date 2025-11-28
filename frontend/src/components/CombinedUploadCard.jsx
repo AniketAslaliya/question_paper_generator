@@ -14,25 +14,49 @@ const CombinedUploadCard = ({ onUploadComplete, onCIFParsed, paperId }) => {
      * This ensures that the Topic Review step can fetch and display topics immediately
      */
     const autoSaveCifTopics = async (topics, paperId) => {
-        if (!paperId || !Array.isArray(topics) || topics.length === 0) {
-            console.log('⏭️ Skipping auto-save: no paperId or no topics to save');
+        if (!paperId) {
+            console.warn('[AUTO-SAVE] Skipping auto-save: no paperId provided');
+            return;
+        }
+        
+        if (!Array.isArray(topics)) {
+            console.warn('[AUTO-SAVE] Skipping auto-save: topics is not an array', typeof topics);
+            return;
+        }
+        
+        if (topics.length === 0) {
+            console.warn('[AUTO-SAVE] Skipping auto-save: no topics to save');
             return;
         }
 
         try {
             const token = localStorage.getItem('token');
-            console.log(`💾 Auto-saving ${topics.length} parsed CIF topics to server...`);
+            console.log(`\n[AUTO-SAVE] Starting auto-save of ${topics.length} CIF topics...`);
+            console.log(`[AUTO-SAVE] Paper ID: ${paperId}`);
+            console.log(`[AUTO-SAVE] Topics to save:`, topics.map(t => typeof t === 'string' ? t : t.name));
             
+            const startTime = Date.now();
             const response = await axios.post(
                 `${API_URL}/api/papers/${paperId}/confirm-cif-topics`,
                 { confirmedTopics: topics },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
             
-            console.log('✅ CIF topics auto-saved to server:', response.data);
+            const elapsedTime = Date.now() - startTime;
+            console.log(`[AUTO-SAVE] SUCCESS! Topics saved in ${elapsedTime}ms`);
+            console.log(`[AUTO-SAVE] Server response:`, {
+                message: response.data.message,
+                totalTopics: response.data.totalTopics,
+                cifTopics: response.data.cifTopics?.length
+            });
         } catch (err) {
-            console.error('⚠️ Failed to auto-save CIF topics:', err.message);
+            console.error(`\n[AUTO-SAVE] FAILED to auto-save CIF topics`);
+            console.error(`[AUTO-SAVE] Error message:`, err.message);
+            console.error(`[AUTO-SAVE] Error status:`, err.response?.status);
+            console.error(`[AUTO-SAVE] Error data:`, err.response?.data);
+            console.error(`[AUTO-SAVE] Full error:`, err);
             // Non-fatal error - topics are still in client state and will display
+            console.log('[AUTO-SAVE] Topics are still available in browser state - they will display locally');
         }
     };
 
@@ -52,8 +76,13 @@ const CombinedUploadCard = ({ onUploadComplete, onCIFParsed, paperId }) => {
 
         try {
             const token = localStorage.getItem('token');
-            console.log('📤 Uploading CIF file:', file.name);
+            console.log('\n[CIF-PARSE] Starting CIF file upload:', {
+                fileName: file.name,
+                fileSize: `${(file.size / 1024).toFixed(2)} KB`,
+                fileType: file.type
+            });
             
+            const parseStartTime = Date.now();
             const res = await axios.post(`${API_URL}/api/papers/parse-cif`, formData, {
                 headers: {
                     'Content-Type': 'multipart/form-data',
@@ -62,26 +91,29 @@ const CombinedUploadCard = ({ onUploadComplete, onCIFParsed, paperId }) => {
                 timeout: 120000 // 120 second timeout (increased to handle Gemini API + parsing which can take 30-40s)
             });
 
-            console.log('✅ CIF parsing response:', res.data);
-            console.log('📊 Response details:', {
+            const parseElapsedTime = Date.now() - parseStartTime;
+            console.log(`[CIF-PARSE] Parsing completed in ${parseElapsedTime}ms`);
+            console.log('[CIF-PARSE] Response summary:', {
                 status: res.data.status,
                 totalTopics: res.data.totalTopics,
-                topicsLength: res.data.topics?.length,
-                topicsArray: res.data.topics,
-                message: res.data.message,
-                pdfType: res.data.pdfType
+                pdfType: res.data.pdfType,
+                extractedTextLength: res.data.extractedTextLength,
+                processingTimeMs: res.data.processingTimeMs,
+                requestId: res.data.requestId
             });
             
-            // DEBUG: Check the condition
-            console.log('🔍 Condition check:');
-            console.log('   res.data.status === "error":', res.data.status === 'error');
-            console.log('   res.data.totalTopics === 0:', res.data.totalTopics === 0);
-            console.log('   Combined (should be FALSE):', res.data.status === 'error' || res.data.totalTopics === 0);
+            if (res.data.topics && res.data.topics.length > 0) {
+                console.log('[CIF-PARSE] Topics extracted:', res.data.topics.slice(0, 5).map(t => t.name || t));
+                if (res.data.topics.length > 5) {
+                    console.log(`   ... and ${res.data.topics.length - 5} more topics`);
+                }
+            }
             
             // Handle response
             if (res.data.status === 'error' || res.data.totalTopics === 0) {
-                console.warn('⚠️ ENTERING NO-TOPICS BRANCH');
-                console.warn('⚠️ CIF parsing returned no topics:', res.data.message);
+                console.warn('\n[CIF-PARSE] No topics found in CIF');
+                console.warn('[CIF-PARSE] Reason:', res.data.message);
+                console.warn('[CIF-PARSE] PDF Type:', res.data.pdfType);
                 setCifData({
                     ...res.data,
                     totalTopics: 0,
@@ -89,27 +121,37 @@ const CombinedUploadCard = ({ onUploadComplete, onCIFParsed, paperId }) => {
                     message: res.data.message || 'No topics extracted from PDF'
                 });
             } else {
-                console.log('✅ ENTERING SUCCESS BRANCH - Setting cifData with', res.data.topics?.length, 'topics');
+                console.log(`\n[CIF-PARSE] SUCCESS! ${res.data.totalTopics} topics extracted`);
                 setCifData(res.data);
                 
                 // Auto-save topics to server if paperId is available
                 if (paperId && res.data.topics && res.data.topics.length > 0) {
+                    console.log(`\n[CIF-PARSE] Triggering auto-save to server...`);
                     autoSaveCifTopics(res.data.topics, paperId);
+                } else if (!paperId) {
+                    console.warn('[CIF-PARSE] paperId not available - auto-save skipped. Topics exist only in browser state.');
                 }
             }
             
             onCIFParsed(res.data);
         } catch (err) {
-            console.error('❌ CIF parsing failed:', err.message);
+            console.error('\n[CIF-PARSE] CIF parsing failed');
+            console.error('[CIF-PARSE] Error message:', err.message);
+            console.error('[CIF-PARSE] Error code:', err.code);
+            console.error('[CIF-PARSE] Error response:', err.response?.data);
             
             // Check if it's a timeout
             if (err.code === 'ECONNABORTED') {
+                console.error('[CIF-PARSE] Request timed out after 120 seconds');
                 alert('CIF parsing timed out (took longer than 2 minutes). The file may be very large or the server is slow. Please try again or try a smaller file.');
             } else if (err.response?.status === 400) {
+                console.error('[CIF-PARSE] Bad request (400):', err.response.data?.message);
                 alert(`CIF parsing failed: ${err.response.data?.message || 'Invalid file format'}`);
             } else if (err.response?.status === 500) {
+                console.error('[CIF-PARSE] Server error (500):', err.response.data?.message);
                 alert(`Server error: ${err.response.data?.message || 'Please try again'}`);
             } else {
+                console.error('[CIF-PARSE] Unknown error');
                 alert('CIF parsing failed. Please check the file and try again.');
             }
             

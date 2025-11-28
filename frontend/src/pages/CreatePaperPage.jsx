@@ -80,12 +80,16 @@ const CreatePaperPage = () => {
         // If parsed CIF data contains topics, populate the local cifTopics state
         // so the topic review step can show them even before they are confirmed/saved to the server.
         if (data && Array.isArray(data.topics) && data.topics.length > 0) {
-            console.log('🔔 Received parsed CIF topics from parser, populating local state with', data.topics.length, 'topics');
+            console.log(`\n[TOPIC-LOAD] Received parsed CIF topics from parser, populating local state with ${data.topics.length} topics`);
+            console.log('[TOPIC-LOAD] Topics:', data.topics.map(t => t.name || t).slice(0, 5));
             setCifTopics(data.topics);
             setTopicsLoaded(true);
             setTopicsLoadError(null);
         } else if (data && (!data.topics || data.topics.length === 0)) {
             // If parser responded but found no topics, mark topicsLoaded so UI shows the 'no topics' panel
+            console.warn('\n[TOPIC-LOAD] Parser returned no topics');
+            console.warn('[TOPIC-LOAD] Reason:', data.message);
+            console.warn('[TOPIC-LOAD] PDF Type:', data.pdfType);
             setTopicsLoaded(true);
             if (data.message) setTopicsLoadError(data.message);
         }
@@ -244,20 +248,30 @@ const CreatePaperPage = () => {
             // rather than immediately overwriting with server data (which may not
             // have been saved yet). This ensures users see parsed topics right away.
             if (cifData && Array.isArray(cifData.topics) && cifData.topics.length > 0) {
-                console.log('📌 Using local parsed CIF data to populate topics (client-side)');
+                console.log(`\n[TOPIC-LOAD] Using local parsed CIF data to populate topics (client-side)`);
+                console.log(`[TOPIC-LOAD] Found ${cifData.topics.length} topics in cifData`);
+                console.log(`[TOPIC-LOAD] Topics:`, cifData.topics.map(t => t.name || t).slice(0, 3));
                 setCifTopics(cifData.topics);
                 setTopicsLoaded(true);
                 return;
             }
 
+            console.log('\n[TOPIC-LOAD] No client-side data found, fetching from server...');
             const token = localStorage.getItem('token');
             const res = await axios.get(`${API_URL}/api/papers/${paperId}/cif-topics`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
+            
+            console.log(`[TOPIC-LOAD] Fetched ${res.data.cifTopics?.length || 0} topics from server`);
+            if (res.data.cifTopics && res.data.cifTopics.length > 0) {
+                console.log(`[TOPIC-LOAD] Topics:`, res.data.cifTopics.map(t => t.name || t).slice(0, 3));
+            }
             setCifTopics(res.data.cifTopics || []);
             setTopicsLoaded(true);
         } catch (err) {
-            console.error('Error loading CIF topics:', err);
+            console.error('\n[TOPIC-LOAD] Error loading CIF topics');
+            console.error(`[TOPIC-LOAD] Error:`, err.message);
+            console.error(`[TOPIC-LOAD] Response status:`, err.response?.status);
             setTopicsLoaded(true);
             setTopicsLoadError('Failed to load topics from your CIF file. You can continue without topics or add them manually.');
         }
@@ -275,20 +289,45 @@ const CreatePaperPage = () => {
         }
     };
 
-    const handleConfirmCifTopics = async (confirmedTopics) => {
+    const handleConfirmCifTopics = async (confirmedTopicsNames) => {
         try {
             setTopicReviewLoading(true);
             const token = localStorage.getItem('token');
+            
+            console.log(`\n[TOPIC-CONFIRM] Starting topic confirmation process`);
+            console.log(`[TOPIC-CONFIRM] Confirmed topics count: ${confirmedTopicsNames.length}`);
+            console.log(`[TOPIC-CONFIRM] Confirmed topics:`, confirmedTopicsNames.slice(0, 3));
+            
+            // Convert confirmed topic names back to objects, preserving weightage from original cifTopics
+            const confirmedTopics = confirmedTopicsNames.map(name => {
+                const original = cifTopics.find(t => (typeof t === 'string' ? t : t.name) === name);
+                return {
+                    name: name,
+                    weightage: original ? (typeof original === 'string' ? 0 : original.weightage) : 0
+                };
+            });
+            
+            console.log(`[TOPIC-CONFIRM] Sending ${confirmedTopics.length} topics to server...`);
+            
+            const confirmStartTime = Date.now();
             await axios.post(`${API_URL}/api/papers/${paperId}/confirm-cif-topics`, {
-                cifTopics: confirmedTopics
+                confirmedTopics: confirmedTopics
             }, {
                 headers: { Authorization: `Bearer ${token}` }
             });
+            
+            const confirmElapsedTime = Date.now() - confirmStartTime;
+            console.log(`[TOPIC-CONFIRM] Topics confirmed and saved to server in ${confirmElapsedTime}ms`);
+            console.log(`[TOPIC-CONFIRM] Proceeding to next step...`);
+            
             setCifTopics(confirmedTopics);
             // Proceed to important topics step
             setStep(3);
         } catch (err) {
-            console.error('Error confirming CIF topics:', err);
+            console.error(`\n[TOPIC-CONFIRM] Failed to confirm CIF topics`);
+            console.error(`[TOPIC-CONFIRM] Error:`, err.message);
+            console.error(`[TOPIC-CONFIRM] Response status:`, err.response?.status);
+            console.error(`[TOPIC-CONFIRM] Response data:`, err.response?.data);
             alert('Failed to save topics. Please try again.');
         } finally {
             setTopicReviewLoading(false);
@@ -605,7 +644,7 @@ const CreatePaperPage = () => {
                                 </div>
                             ) : cifTopics.length > 0 ? (
                                 <TopicReviewCard
-                                    parsedTopics={cifTopics}
+                                    parsedTopics={cifTopics.map(t => typeof t === 'string' ? t : t.name)}
                                     onConfirm={handleConfirmCifTopics}
                                     loading={topicReviewLoading}
                                 />
