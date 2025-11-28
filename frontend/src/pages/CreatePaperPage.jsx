@@ -76,6 +76,19 @@ const CreatePaperPage = () => {
 
     const handleCIFParsed = (data) => {
         setCifData(data);
+
+        // If parsed CIF data contains topics, populate the local cifTopics state
+        // so the topic review step can show them even before they are confirmed/saved to the server.
+        if (data && Array.isArray(data.topics) && data.topics.length > 0) {
+            console.log('🔔 Received parsed CIF topics from parser, populating local state with', data.topics.length, 'topics');
+            setCifTopics(data.topics);
+            setTopicsLoaded(true);
+            setTopicsLoadError(null);
+        } else if (data && (!data.topics || data.topics.length === 0)) {
+            // If parser responded but found no topics, mark topicsLoaded so UI shows the 'no topics' panel
+            setTopicsLoaded(true);
+            if (data.message) setTopicsLoadError(data.message);
+        }
     };
 
     // Poll generation status
@@ -226,6 +239,17 @@ const CreatePaperPage = () => {
         try {
             setTopicsLoaded(false);
             setTopicsLoadError(null);
+
+            // If we already have parsed CIF data from client-side parsing, use it
+            // rather than immediately overwriting with server data (which may not
+            // have been saved yet). This ensures users see parsed topics right away.
+            if (cifData && Array.isArray(cifData.topics) && cifData.topics.length > 0) {
+                console.log('📌 Using local parsed CIF data to populate topics (client-side)');
+                setCifTopics(cifData.topics);
+                setTopicsLoaded(true);
+                return;
+            }
+
             const token = localStorage.getItem('token');
             const res = await axios.get(`${API_URL}/api/papers/${paperId}/cif-topics`, {
                 headers: { Authorization: `Bearer ${token}` }
