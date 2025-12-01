@@ -1,13 +1,23 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
-if (!process.env.GEMINI_API_KEY) {
+// Check for API key at startup
+const apiKey = process.env.GEMINI_API_KEY;
+if (!apiKey) {
     console.error('❌ GEMINI_API_KEY is not set in environment variables!');
     console.error('⚠️  Paper generation will fail without this key');
+} else {
+    console.log('✅ GEMINI_API_KEY is configured (length:', apiKey.length, ')');
 }
 
-const genAI = process.env.GEMINI_API_KEY 
-    ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
-    : null;
+let genAI = null;
+try {
+    if (apiKey) {
+        genAI = new GoogleGenerativeAI(apiKey);
+        console.log('✅ GoogleGenerativeAI client initialized successfully');
+    }
+} catch (initError) {
+    console.error('❌ Failed to initialize GoogleGenerativeAI:', initError.message);
+}
 
 /**
  * LAYER 1: Extract and combine all allowed topics from CIF and important topics
@@ -139,7 +149,8 @@ const generatePaper = async ({
   duration = '3 Hours'
 }) => {
   if (!genAI) {
-    throw new Error('GEMINI_API_KEY is not configured. Please set it in environment variables.');
+    console.error('❌ genAI is null. GEMINI_API_KEY status:', process.env.GEMINI_API_KEY ? 'SET' : 'NOT SET');
+    throw new Error('GEMINI_API_KEY is invalid or not set. Please configure it in environment variables.');
   }
 
   // Validate sections early
