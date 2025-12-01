@@ -194,14 +194,26 @@ router.get('/papers', auth, adminAuth, async (req, res) => {
                 lastAutoSaveAt: paper.lastAutoSaveAt,
                 // Generation status
                 generationStatus: paper.generationStatus || { status: 'pending', progress: 0 },
-                // Config summary
-                configSummary: paper.config ? {
-                    templateName: paper.config.templateName,
-                    marks: paper.config.marks,
-                    duration: paper.config.duration,
-                    sectionsCount: (paper.config.sections || []).length,
+                // Full Template Configuration
+                templateConfig: paper.config ? {
+                    templateName: paper.config.templateName || 'Custom',
+                    marks: paper.config.marks || 0,
+                    duration: paper.config.duration || 'N/A',
+                    difficulty: paper.config.difficulty || { easy: 0, medium: 0, hard: 0 },
+                    sections: (paper.config.sections || []).map(s => ({
+                        name: s.name,
+                        marks: s.marks,
+                        questionCount: s.questionCount,
+                        questionType: s.questionType,
+                        instructions: s.instructions
+                    })),
+                    bloomsTaxonomy: paper.config.bloomsTaxonomy || {},
                     questionTypes: paper.config.questionTypes || [],
-                    generateAnswerKey: paper.config.generateAnswerKey || false
+                    generateAnswerKey: paper.config.generateAnswerKey || false,
+                    mandatoryExercises: paper.config.mandatoryExercises || [],
+                    referenceQuestions: paper.config.referenceQuestions || [],
+                    importantTopics: paper.config.importantTopics || '',
+                    setsGenerated: paper.config.setsGenerated || false
                 } : null,
                 currentVersion: latestVersion ? {
                     versionNumber: latestVersion.versionNumber,

@@ -532,23 +532,104 @@ const AdminDashboard = () => {
                                                                             </div>
                                                                         </div>
 
-                                                                        {/* Config Summary */}
-                                                                        <div className="bg-white p-4 rounded-lg border border-slate-200">
-                                                                            <h4 className="text-sm font-bold text-slate-800 mb-2 flex items-center gap-2">
+                                                                        {/* Template Configuration - Full Details */}
+                                                                        <div className="bg-white p-4 rounded-lg border border-indigo-200 md:col-span-2">
+                                                                            <h4 className="text-sm font-bold text-indigo-800 mb-3 flex items-center gap-2">
                                                                                 <Settings className="w-4 h-4" />
-                                                                                Configuration
+                                                                                Template Configuration
                                                                             </h4>
-                                                                            {paperFullDetails.config ? (
-                                                                                <div className="grid grid-cols-2 gap-2 text-xs">
-                                                                                    <div><span className="text-slate-500">Template:</span> {paperFullDetails.config.templateName || 'N/A'}</div>
-                                                                                    <div><span className="text-slate-500">Total Marks:</span> {paperFullDetails.config.marks || 'N/A'}</div>
-                                                                                    <div><span className="text-slate-500">Duration:</span> {paperFullDetails.config.duration || 'N/A'}</div>
-                                                                                    <div><span className="text-slate-500">Sections:</span> {paperFullDetails.config.sections?.length || 0}</div>
-                                                                                    <div><span className="text-slate-500">Answer Key:</span> {paperFullDetails.config.generateAnswerKey ? 'Yes' : 'No'}</div>
-                                                                                    <div><span className="text-slate-500">Q. Types:</span> {paperFullDetails.config.questionTypes?.join(', ') || 'N/A'}</div>
+                                                                            {paper.templateConfig ? (
+                                                                                <div className="space-y-3">
+                                                                                    {/* Basic Info */}
+                                                                                    <div className="grid grid-cols-4 gap-2 text-xs pb-2 border-b border-indigo-100">
+                                                                                        <div className="bg-indigo-50 p-2 rounded">
+                                                                                            <span className="text-indigo-600 block">Template</span>
+                                                                                            <span className="font-bold text-indigo-900">{paper.templateConfig.templateName || 'Custom'}</span>
+                                                                                        </div>
+                                                                                        <div className="bg-indigo-50 p-2 rounded">
+                                                                                            <span className="text-indigo-600 block">Total Marks</span>
+                                                                                            <span className="font-bold text-indigo-900">{paper.templateConfig.marks || 0}</span>
+                                                                                        </div>
+                                                                                        <div className="bg-indigo-50 p-2 rounded">
+                                                                                            <span className="text-indigo-600 block">Duration</span>
+                                                                                            <span className="font-bold text-indigo-900">{paper.templateConfig.duration || 'N/A'}</span>
+                                                                                        </div>
+                                                                                        <div className="bg-indigo-50 p-2 rounded">
+                                                                                            <span className="text-indigo-600 block">Answer Key</span>
+                                                                                            <span className="font-bold text-indigo-900">{paper.templateConfig.generateAnswerKey ? '✅ Yes' : '❌ No'}</span>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                    
+                                                                                    {/* Difficulty Distribution */}
+                                                                                    {paper.templateConfig.difficulty && (
+                                                                                        <div className="pb-2 border-b border-indigo-100">
+                                                                                            <span className="text-xs font-semibold text-slate-600 block mb-1">Difficulty Distribution:</span>
+                                                                                            <div className="flex gap-2">
+                                                                                                <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs">
+                                                                                                    Easy: {paper.templateConfig.difficulty.easy || 0}%
+                                                                                                </span>
+                                                                                                <span className="px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded text-xs">
+                                                                                                    Medium: {paper.templateConfig.difficulty.medium || 0}%
+                                                                                                </span>
+                                                                                                <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded text-xs">
+                                                                                                    Hard: {paper.templateConfig.difficulty.hard || 0}%
+                                                                                                </span>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    )}
+                                                                                    
+                                                                                    {/* Bloom's Taxonomy */}
+                                                                                    {paper.templateConfig.bloomsTaxonomy && Object.keys(paper.templateConfig.bloomsTaxonomy).length > 0 && (
+                                                                                        <div className="pb-2 border-b border-indigo-100">
+                                                                                            <span className="text-xs font-semibold text-slate-600 block mb-1">Bloom's Taxonomy:</span>
+                                                                                            <div className="flex flex-wrap gap-1">
+                                                                                                {Object.entries(paper.templateConfig.bloomsTaxonomy).map(([level, value]) => (
+                                                                                                    value > 0 && (
+                                                                                                        <span key={level} className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs capitalize">
+                                                                                                            {level}: {value}%
+                                                                                                        </span>
+                                                                                                    )
+                                                                                                ))}
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    )}
+                                                                                    
+                                                                                    {/* Sections */}
+                                                                                    {paper.templateConfig.sections && paper.templateConfig.sections.length > 0 && (
+                                                                                        <div className="pb-2 border-b border-indigo-100">
+                                                                                            <span className="text-xs font-semibold text-slate-600 block mb-1">Sections ({paper.templateConfig.sections.length}):</span>
+                                                                                            <div className="space-y-1">
+                                                                                                {paper.templateConfig.sections.map((s, idx) => (
+                                                                                                    <div key={idx} className="flex items-center gap-2 text-xs bg-slate-50 p-1.5 rounded">
+                                                                                                        <span className="font-semibold text-slate-700 min-w-[80px]">{s.name}</span>
+                                                                                                        <span className="text-slate-500">|</span>
+                                                                                                        <span className="text-blue-600">{s.marks} marks</span>
+                                                                                                        <span className="text-slate-500">|</span>
+                                                                                                        <span className="text-green-600">{s.questionCount} Q</span>
+                                                                                                        <span className="text-slate-500">|</span>
+                                                                                                        <span className="text-purple-600 capitalize">{s.questionType}</span>
+                                                                                                    </div>
+                                                                                                ))}
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    )}
+                                                                                    
+                                                                                    {/* Question Types */}
+                                                                                    {paper.templateConfig.questionTypes && paper.templateConfig.questionTypes.length > 0 && (
+                                                                                        <div>
+                                                                                            <span className="text-xs font-semibold text-slate-600 block mb-1">Question Types:</span>
+                                                                                            <div className="flex flex-wrap gap-1">
+                                                                                                {paper.templateConfig.questionTypes.map((type, idx) => (
+                                                                                                    <span key={idx} className="px-2 py-0.5 bg-cyan-100 text-cyan-700 rounded text-xs">
+                                                                                                        {type}
+                                                                                                    </span>
+                                                                                                ))}
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    )}
                                                                                 </div>
                                                                             ) : (
-                                                                                <span className="text-xs text-slate-500 italic">No config</span>
+                                                                                <span className="text-xs text-slate-500 italic">No template configuration</span>
                                                                             )}
                                                                         </div>
 
@@ -837,30 +918,110 @@ const AdminDashboard = () => {
                                     </div>
                                 )}
 
-                                {/* Configuration Section */}
+                                {/* Configuration Section - Full Template Details */}
                                 {paperFullDetails?.config && (
-                                    <div className="mb-6 p-4 bg-slate-50 border border-slate-200 rounded-lg">
-                                        <h3 className="text-lg font-bold text-slate-900 mb-3 flex items-center gap-2">
+                                    <div className="mb-6 p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
+                                        <h3 className="text-lg font-bold text-indigo-900 mb-4 flex items-center gap-2">
                                             <Settings className="w-5 h-5" />
-                                            Paper Configuration
+                                            Template Configuration
                                         </h3>
-                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                                            <div><span className="text-slate-500">Template:</span> <span className="font-medium">{paperFullDetails.config.templateName || 'N/A'}</span></div>
-                                            <div><span className="text-slate-500">Total Marks:</span> <span className="font-medium">{paperFullDetails.config.marks || 'N/A'}</span></div>
-                                            <div><span className="text-slate-500">Duration:</span> <span className="font-medium">{paperFullDetails.config.duration || 'N/A'}</span></div>
-                                            <div><span className="text-slate-500">Answer Key:</span> <span className="font-medium">{paperFullDetails.config.generateAnswerKey ? 'Yes' : 'No'}</span></div>
+                                        
+                                        {/* Basic Info Grid */}
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                                            <div className="bg-white p-3 rounded-lg border border-indigo-100">
+                                                <span className="text-xs text-indigo-600 block">Template</span>
+                                                <span className="font-bold text-indigo-900">{paperFullDetails.config.templateName || 'Custom'}</span>
+                                            </div>
+                                            <div className="bg-white p-3 rounded-lg border border-indigo-100">
+                                                <span className="text-xs text-indigo-600 block">Total Marks</span>
+                                                <span className="font-bold text-indigo-900">{paperFullDetails.config.marks || 0}</span>
+                                            </div>
+                                            <div className="bg-white p-3 rounded-lg border border-indigo-100">
+                                                <span className="text-xs text-indigo-600 block">Duration</span>
+                                                <span className="font-bold text-indigo-900">{paperFullDetails.config.duration || 'N/A'}</span>
+                                            </div>
+                                            <div className="bg-white p-3 rounded-lg border border-indigo-100">
+                                                <span className="text-xs text-indigo-600 block">Answer Key</span>
+                                                <span className="font-bold text-indigo-900">{paperFullDetails.config.generateAnswerKey ? '✅ Included' : '❌ Not Included'}</span>
+                                            </div>
                                         </div>
-                                        {paperFullDetails.config.sections && paperFullDetails.config.sections.length > 0 && (
-                                            <div className="mt-4">
-                                                <h4 className="text-sm font-semibold text-slate-700 mb-2">Sections Configuration:</h4>
-                                                <div className="space-y-2">
-                                                    {paperFullDetails.config.sections.map((s, idx) => (
-                                                        <div key={idx} className="bg-white p-2 rounded border border-slate-200 text-xs flex gap-4">
-                                                            <span><strong>{s.name}</strong></span>
-                                                            <span>Marks: {s.marks}</span>
-                                                            <span>Questions: {s.questionCount}</span>
-                                                            <span>Type: {s.questionType}</span>
+
+                                        {/* Difficulty Distribution */}
+                                        {paperFullDetails.config.difficulty && (
+                                            <div className="mb-4 p-3 bg-white rounded-lg border border-indigo-100">
+                                                <h4 className="text-sm font-semibold text-slate-700 mb-2">Difficulty Distribution</h4>
+                                                <div className="flex gap-3">
+                                                    <div className="flex-1 bg-green-50 p-2 rounded text-center">
+                                                        <span className="text-2xl font-bold text-green-600">{paperFullDetails.config.difficulty.easy || 0}%</span>
+                                                        <span className="text-xs text-green-700 block">Easy</span>
+                                                    </div>
+                                                    <div className="flex-1 bg-yellow-50 p-2 rounded text-center">
+                                                        <span className="text-2xl font-bold text-yellow-600">{paperFullDetails.config.difficulty.medium || 0}%</span>
+                                                        <span className="text-xs text-yellow-700 block">Medium</span>
+                                                    </div>
+                                                    <div className="flex-1 bg-red-50 p-2 rounded text-center">
+                                                        <span className="text-2xl font-bold text-red-600">{paperFullDetails.config.difficulty.hard || 0}%</span>
+                                                        <span className="text-xs text-red-700 block">Hard</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Bloom's Taxonomy */}
+                                        {paperFullDetails.config.bloomsTaxonomy && Object.values(paperFullDetails.config.bloomsTaxonomy).some(v => v > 0) && (
+                                            <div className="mb-4 p-3 bg-white rounded-lg border border-indigo-100">
+                                                <h4 className="text-sm font-semibold text-slate-700 mb-2">Bloom's Taxonomy Distribution</h4>
+                                                <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+                                                    {Object.entries(paperFullDetails.config.bloomsTaxonomy).map(([level, value]) => (
+                                                        <div key={level} className={`p-2 rounded text-center ${value > 0 ? 'bg-purple-50' : 'bg-slate-50'}`}>
+                                                            <span className={`text-lg font-bold ${value > 0 ? 'text-purple-600' : 'text-slate-400'}`}>{value || 0}%</span>
+                                                            <span className={`text-xs block capitalize ${value > 0 ? 'text-purple-700' : 'text-slate-400'}`}>{level}</span>
                                                         </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Sections Configuration */}
+                                        {paperFullDetails.config.sections && paperFullDetails.config.sections.length > 0 && (
+                                            <div className="mb-4 p-3 bg-white rounded-lg border border-indigo-100">
+                                                <h4 className="text-sm font-semibold text-slate-700 mb-2">Sections ({paperFullDetails.config.sections.length})</h4>
+                                                <div className="overflow-x-auto">
+                                                    <table className="min-w-full text-xs">
+                                                        <thead>
+                                                            <tr className="bg-slate-50">
+                                                                <th className="px-3 py-2 text-left font-semibold text-slate-600">Section</th>
+                                                                <th className="px-3 py-2 text-left font-semibold text-slate-600">Marks</th>
+                                                                <th className="px-3 py-2 text-left font-semibold text-slate-600">Questions</th>
+                                                                <th className="px-3 py-2 text-left font-semibold text-slate-600">Type</th>
+                                                                <th className="px-3 py-2 text-left font-semibold text-slate-600">Instructions</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {paperFullDetails.config.sections.map((s, idx) => (
+                                                                <tr key={idx} className="border-t border-slate-100">
+                                                                    <td className="px-3 py-2 font-medium">{s.name}</td>
+                                                                    <td className="px-3 py-2 text-blue-600">{s.marks}</td>
+                                                                    <td className="px-3 py-2 text-green-600">{s.questionCount}</td>
+                                                                    <td className="px-3 py-2"><span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded capitalize">{s.questionType}</span></td>
+                                                                    <td className="px-3 py-2 text-slate-500 max-w-xs truncate">{s.instructions || '-'}</td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Question Types */}
+                                        {paperFullDetails.config.questionTypes && paperFullDetails.config.questionTypes.length > 0 && (
+                                            <div className="p-3 bg-white rounded-lg border border-indigo-100">
+                                                <h4 className="text-sm font-semibold text-slate-700 mb-2">Enabled Question Types</h4>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {paperFullDetails.config.questionTypes.map((type, idx) => (
+                                                        <span key={idx} className="px-3 py-1 bg-cyan-100 text-cyan-700 rounded-full text-sm font-medium">
+                                                            {type}
+                                                        </span>
                                                     ))}
                                                 </div>
                                             </div>
