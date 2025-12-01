@@ -200,7 +200,9 @@ const generatePaper = async ({
       name: s.name,
       marks: s.marks,
       questionCount: s.questionCount,
-      questionType: s.questionType
+      questionType: s.questionType,
+      sectionDifficulty: s.sectionDifficulty || 'Medium',
+      questionDifficultiesLength: s.questionDifficulties?.length || 0
     })),
     totalMarks: templateConfig?.marks,
     hasExtractedText: !!extractedText && extractedText.length > 0,
@@ -231,15 +233,32 @@ const generatePaper = async ({
   
   const sectionsDetail = sections.map(s => {
     const marksPerQuestion = s.questionCount > 0 ? (s.marks / s.questionCount) : s.marks;
+    const questionCount = s.questionCount || 1;
     // Get per-question difficulties or fallback to section difficulty or 'Medium'
-    const questionDifficulties = s.questionDifficulties || Array(s.questionCount || 1).fill(s.sectionDifficulty || 'Medium');
+    const sectionDifficulty = s.sectionDifficulty || 'Medium';
+    let questionDifficulties = s.questionDifficulties;
+    
+    // Ensure questionDifficulties is a valid array with correct length
+    if (!Array.isArray(questionDifficulties) || questionDifficulties.length === 0) {
+      questionDifficulties = Array(questionCount).fill(sectionDifficulty);
+    } else if (questionDifficulties.length < questionCount) {
+      // Pad with section difficulty if array is too short
+      questionDifficulties = [
+        ...questionDifficulties,
+        ...Array(questionCount - questionDifficulties.length).fill(sectionDifficulty)
+      ];
+    } else if (questionDifficulties.length > questionCount) {
+      // Trim if array is too long
+      questionDifficulties = questionDifficulties.slice(0, questionCount);
+    }
+    
     return {
       name: s.name || 'Section',
-      questionCount: s.questionCount || 1,
+      questionCount: questionCount,
       totalMarks: s.marks || 10,
       marksPerQuestion: marksPerQuestion,
       questionType: s.questionType || 'Theoretical',
-      sectionDifficulty: s.sectionDifficulty || 'Medium',
+      sectionDifficulty: sectionDifficulty,
       questionDifficulties: questionDifficulties,
       instructions: s.instructions || `Answer all questions from this section`
     };
