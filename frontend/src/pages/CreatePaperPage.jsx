@@ -7,9 +7,7 @@ import StepIndicator from '../components/StepIndicator';
 import CombinedUploadCard from '../components/CombinedUploadCard';
 import TemplateSelector from '../components/TemplateSelector';
 import SectionConfigCard from '../components/SectionConfigCard';
-import BloomsTaxonomySelector from '../components/BloomsTaxonomySelector';
 import ExerciseSelector from '../components/ExerciseSelector';
-import ReferenceQuestionsCard from '../components/ReferenceQuestionsCard';
 import ImportantTopicsCard from '../components/ImportantTopicsCard';
 import ImportantTopicsWithNotesCard from '../components/ImportantTopicsWithNotesCard';
 import ImportantQuestionsCard from '../components/ImportantQuestionsCard';
@@ -38,24 +36,14 @@ const CreatePaperPage = () => {
         templateName: 'midterm',
         marks: 100,
         duration: '3 hours',
-        difficulty: { easy: 30, medium: 50, hard: 20 },
         weightage: {},
         mandatoryExercises: [],
-        referenceQuestions: [],
         importantTopics: '',
         generateAnswerKey: false,
         sections: [
-            { name: 'Section A', marks: 40, questionCount: 5, questionType: 'Multiple Choice' },
-            { name: 'Section B', marks: 60, questionCount: 4, questionType: 'Long Answer' }
-        ],
-        bloomsTaxonomy: {
-            remember: 20,
-            understand: 25,
-            apply: 25,
-            analyze: 15,
-            evaluate: 10,
-            create: 5
-        }
+            { name: 'Section A', marks: 40, questionCount: 5, questionType: 'Multiple Choice', sectionDifficulty: 'Easy', questionDifficulties: ['Easy', 'Easy', 'Easy', 'Easy', 'Easy'] },
+            { name: 'Section B', marks: 60, questionCount: 4, questionType: 'Long Answer', sectionDifficulty: 'Medium', questionDifficulties: ['Medium', 'Medium', 'Medium', 'Medium'] }
+        ]
     });
 
     const [generatedContent, setGeneratedContent] = useState('');
@@ -763,55 +751,7 @@ const CreatePaperPage = () => {
                         </section>
 
                         <section>
-                            <h3 className="section-title">3. Difficulty Distribution</h3>
-                            <div className="card space-y-6">
-                                <div>
-                                    <label className="flex justify-between text-sm font-bold text-black mb-2">
-                                        Easy <span className="text-lg">{config.difficulty.easy}%</span>
-                                    </label>
-                                    <input
-                                        type="range"
-                                        value={config.difficulty.easy}
-                                        onChange={(e) => setConfig({ ...config, difficulty: { ...config.difficulty, easy: parseInt(e.target.value) } })}
-                                        className="w-full h-3 rounded-lg appearance-none cursor-pointer"
-                                        style={{
-                                            background: `linear-gradient(to right, #000 0%, #000 ${config.difficulty.easy}%, #e5e7eb ${config.difficulty.easy}%, #e5e7eb 100%)`
-                                        }}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="flex justify-between text-sm font-bold text-black mb-2">
-                                        Medium <span className="text-lg">{config.difficulty.medium}%</span>
-                                    </label>
-                                    <input
-                                        type="range"
-                                        value={config.difficulty.medium}
-                                        onChange={(e) => setConfig({ ...config, difficulty: { ...config.difficulty, medium: parseInt(e.target.value) } })}
-                                        className="w-full h-3 rounded-lg appearance-none cursor-pointer"
-                                        style={{
-                                            background: `linear-gradient(to right, #000 0%, #000 ${config.difficulty.medium}%, #e5e7eb ${config.difficulty.medium}%, #e5e7eb 100%)`
-                                        }}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="flex justify-between text-sm font-bold text-black mb-2">
-                                        Hard <span className="text-lg">{config.difficulty.hard}%</span>
-                                    </label>
-                                    <input
-                                        type="range"
-                                        value={config.difficulty.hard}
-                                        onChange={(e) => setConfig({ ...config, difficulty: { ...config.difficulty, hard: parseInt(e.target.value) } })}
-                                        className="w-full h-3 rounded-lg appearance-none cursor-pointer"
-                                        style={{
-                                            background: `linear-gradient(to right, #000 0%, #000 ${config.difficulty.hard}%, #e5e7eb ${config.difficulty.hard}%, #e5e7eb 100%)`
-                                        }}
-                                    />
-                                </div>
-                            </div>
-                        </section>
-
-                        <section>
-                            <h3 className="section-title">5. Important Questions</h3>
+                            <h3 className="section-title">2. Important Questions</h3>
                             <ImportantQuestionsCard
                                 importantQuestions={importantQuestions}
                                 onAdd={handleAddImportantQuestion}
@@ -826,7 +766,7 @@ const CreatePaperPage = () => {
 
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                             <section>
-                                <h3 className="section-title">6. Important Topics (Compulsory)</h3>
+                                <h3 className="section-title">3. Important Topics (Compulsory)</h3>
                                 <ImportantTopicsCard
                                     topics={config.importantTopics}
                                     onUpdate={(topics) => setConfig({ ...config, importantTopics: topics })}
@@ -834,32 +774,16 @@ const CreatePaperPage = () => {
                             </section>
 
                             <section>
-                                <h3 className="section-title">7. Reference Questions</h3>
-                                <ReferenceQuestionsCard
-                                    references={config.referenceQuestions}
-                                    onUpdate={(refs) => setConfig({ ...config, referenceQuestions: refs })}
-                                />
-                            </section>
-
-                            <section>
-                                <h3 className="section-title">8. Mandatory Exercises</h3>
+                                <h3 className="section-title">4. Mandatory Exercises</h3>
                                 <ExerciseSelector
                                     exercises={detectedExercises}
                                     onUpdate={(exercises) => setConfig({ ...config, mandatoryExercises: exercises })}
                                 />
                             </section>
-
-                            <section>
-                                <h3 className="section-title">8. Bloom's Taxonomy Levels</h3>
-                                <BloomsTaxonomySelector
-                                    distribution={config.bloomsTaxonomy}
-                                    onUpdate={(dist) => setConfig({ ...config, bloomsTaxonomy: dist })}
-                                />
-                            </section>
                         </div>
 
                         <section>
-                            <h3 className="section-title">9. Answer Key</h3>
+                            <h3 className="section-title">5. Answer Key</h3>
                             <div className="card">
                                 <label className="flex items-center gap-4 cursor-pointer">
                                     <input

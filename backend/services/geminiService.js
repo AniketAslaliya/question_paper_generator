@@ -231,12 +231,16 @@ const generatePaper = async ({
   
   const sectionsDetail = sections.map(s => {
     const marksPerQuestion = s.questionCount > 0 ? (s.marks / s.questionCount) : s.marks;
+    // Get per-question difficulties or fallback to section difficulty or 'Medium'
+    const questionDifficulties = s.questionDifficulties || Array(s.questionCount || 1).fill(s.sectionDifficulty || 'Medium');
     return {
       name: s.name || 'Section',
       questionCount: s.questionCount || 1,
       totalMarks: s.marks || 10,
       marksPerQuestion: marksPerQuestion,
       questionType: s.questionType || 'Theoretical',
+      sectionDifficulty: s.sectionDifficulty || 'Medium',
+      questionDifficulties: questionDifficulties,
       instructions: s.instructions || `Answer all questions from this section`
     };
   });
@@ -359,11 +363,14 @@ ${s.name}:
   - Total Marks: ${s.totalMarks} marks
   - Marks per Question: ${s.marksPerQuestion.toFixed(1)} marks
   - Question Type: ${s.questionType === 'Multiple Choice' ? 'ALL questions MUST be Multiple Choice with 4 options (a, b, c, d)' : s.questionType === 'Numerical' ? 'ALL questions MUST be Numerical problems with calculations' : s.questionType === 'Long Answer' ? 'ALL questions MUST be Long Answer/Theoretical requiring detailed explanations' : s.questionType === 'Theoretical' ? 'ALL questions MUST be Theoretical/Descriptive' : 'Mixed types allowed'}
+  - Section Difficulty: ${s.sectionDifficulty}
+  - PER-QUESTION DIFFICULTY (CRITICAL - Each question MUST match its specified difficulty):
+    ${s.questionDifficulties.map((d, i) => `Q${i + 1}: ${d}`).join(', ')}
   - Instructions: ${s.instructions}
   - ⚠️ ALL questions in this section MUST BE ABOUT ALLOWED TOPICS ONLY
 `).join('\n')}
 
-- Difficulty Distribution: Easy ${difficulty?.easy || 30}%, Medium ${difficulty?.medium || 50}%, Hard ${difficulty?.hard || 20}%
+⚠️ DIFFICULTY IS NOW PER-QUESTION: Generate each question at its EXACT specified difficulty level (Easy/Medium/Hard)
 - Bloom's Taxonomy: ${bloomsInfo}
 ${mandatoryList.length > 0 ? `- Mandatory Exercises: ${JSON.stringify(mandatoryList)}` : ''}
 ${cifContext || ''}
@@ -394,10 +401,10 @@ OUTPUT FORMAT - Return ONLY valid JSON (no markdown, no code blocks):
       "questions": [
         ${Array(s.questionCount).fill(0).map((_, i) => `{
           "id": ${i + 1},
-          "text": "A REAL, SPECIFIC ${s.questionType === 'Multiple Choice' ? 'multiple choice question with 4 options (a, b, c, d) - format: Question text? (a) option1 (b) option2 (c) option3 (d) option4' : s.questionType === 'Numerical' ? 'numerical problem with specific values and calculations - include all numerical data needed' : s.questionType === 'Long Answer' ? 'long answer/theoretical question requiring detailed explanation (minimum 30 words)' : s.questionType === 'Theoretical' ? 'theoretical question requiring explanation' : 'question'} about ONE OF THE ALLOWED TOPICS LISTED ABOVE. Minimum 20 words. Reference actual topics, formulas, or examples.",
+          "text": "A REAL, SPECIFIC ${s.questionDifficulties[i] || 'Medium'}-level ${s.questionType === 'Multiple Choice' ? 'multiple choice question with 4 options (a, b, c, d) - format: Question text? (a) option1 (b) option2 (c) option3 (d) option4' : s.questionType === 'Numerical' ? 'numerical problem with specific values and calculations - include all numerical data needed' : s.questionType === 'Long Answer' ? 'long answer/theoretical question requiring detailed explanation (minimum 30 words)' : s.questionType === 'Theoretical' ? 'theoretical question requiring explanation' : 'question'} about ONE OF THE ALLOWED TOPICS LISTED ABOVE. Minimum 20 words. Reference actual topics, formulas, or examples.",
           "marks": ${s.marksPerQuestion.toFixed(1)},
           "type": "${s.questionType}",
-          "difficulty": "Medium",
+          "difficulty": "${s.questionDifficulties[i] || 'Medium'}",
           "bloomLevel": "Understand",
           "chapter": "Chapter name from content",
           "answer": ${generateAnswerKey ? '"Detailed answer referencing specific content"' : 'null'}
