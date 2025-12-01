@@ -159,11 +159,13 @@ router.post('/create-phase1-multi', auth, upload.array('files', 10), async (req,
         const timestamp = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
         const paperName = `${fileBaseName}_${timestamp}_${Date.now().toString(36).toUpperCase()}`;
 
-        // Create initial paper record
+        // Create initial paper record with auto-save
         const paper = new Paper({
             userId: req.user.id,
             userName: req.user.name,
             paperName: paperName,
+            isAutoSaved: true, // Auto-save from creation
+            lastAutoSaveAt: new Date(),
             extractedData: {
                 textChunks: [combinedText],
                 chapters: chapters,

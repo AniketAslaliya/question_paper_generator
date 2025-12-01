@@ -25,11 +25,46 @@ router.get('/stats', auth, adminAuth, async (req, res) => {
         startOfDay.setHours(0, 0, 0, 0);
         const activeUsersToday = await ActivityLog.distinct('userId', { timestamp: { $gte: startOfDay } });
 
+        // Papers with generation status
+        const generatedPapers = await Paper.countDocuments({ 'generationStatus.status': 'completed' });
+        const pendingPapers = await Paper.countDocuments({ 'generationStatus.status': 'pending' });
+        const failedPapers = await Paper.countDocuments({ 'generationStatus.status': 'failed' });
+        
+        // Auto-saved papers
+        const autoSavedPapers = await Paper.countDocuments({ isAutoSaved: true });
+        
+        // Papers with important questions/topics
+        const papersWithImportantQuestions = await Paper.countDocuments({ 
+            'importantQuestions.0': { $exists: true } 
+        });
+        const papersWithCifTopics = await Paper.countDocuments({ 
+            'cifTopics.0': { $exists: true } 
+        });
+        const papersWithImportantTopics = await Paper.countDocuments({ 
+            'importantTopicsWithNotes.0': { $exists: true } 
+        });
+        
+        // Total versions across all papers
+        const versionStats = await Paper.aggregate([
+            { $project: { versionsCount: { $size: { $ifNull: ['$versions', []] } } } },
+            { $group: { _id: null, totalVersions: { $sum: '$versionsCount' } } }
+        ]);
+        const totalVersions = versionStats[0]?.totalVersions || 0;
+
         res.json({
             totalUsers,
             totalPapers,
             totalGenerations,
-            activeUsersToday: activeUsersToday.length
+            activeUsersToday: activeUsersToday.length,
+            // Enhanced stats
+            generatedPapers,
+            pendingPapers,
+            failedPapers,
+            autoSavedPapers,
+            papersWithImportantQuestions,
+            papersWithCifTopics,
+            papersWithImportantTopics,
+            totalVersions
         });
     } catch (err) {
         console.error(err);
@@ -72,18 +107,33 @@ router.get('/papers', auth, adminAuth, async (req, res) => {
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 20;
         const skip = (page - 1) * limit;
+        const filter = req.query.filter; // 'all', 'generated', 'pending', 'auto-saved'
 
-        const total = await Paper.countDocuments();
-        const papers = await Paper.find()
+        // Build query based on filter
+        let query = {};
+        if (filter === 'generated') {
+            query['generationStatus.status'] = 'completed';
+        } else if (filter === 'pending') {
+            query['generationStatus.status'] = { $in: ['pending', 'generating'] };
+        } else if (filter === 'auto-saved') {
+            query.isAutoSaved = true;
+        } else if (filter === 'with-versions') {
+            query['versions.1'] = { $exists: true }; // Has more than 1 version
+        }
+
+        const total = await Paper.countDocuments(query);
+        const papers = await Paper.find(query)
             .populate('userId', 'name email role')
             .populate('importantQuestions.addedBy', 'name email')
             .populate('importantTopicsList.addedBy', 'name email')
+            .populate('importantTopicsWithNotes.addedBy', 'name email')
+            .populate('cifTopics')
             .populate('versions.modifiedBy', 'name email')
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(limit);
 
-        // Transform papers to include userRole and extract sections from latest version
+        // Transform papers to include all details
         const papersWithRole = papers.map(paper => {
             const paperObj = paper.toObject();
             const latestVersion = paperObj.versions && paperObj.versions.length > 0
@@ -97,18 +147,62 @@ router.get('/papers', auth, adminAuth, async (req, res) => {
                 addedBy: t.addedBy?.name || 'Unknown',
                 addedAt: t.addedAt
             }));
+            
+            // Format important topics with notes
+            const importantTopicsWithNotes = (paper.importantTopicsWithNotes || []).map(t => ({
+                topic: t.topic,
+                notes: t.notes || '',
+                priority: t.priority || 'Medium',
+                addedBy: t.addedBy?.name || 'Unknown',
+                addedAt: t.addedAt
+            }));
+            
+            // Format CIF topics
+            const cifTopics = (paper.cifTopics || []).map(t => ({
+                name: t.name,
+                originalName: t.originalName,
+                isConfirmed: t.isConfirmed,
+                confirmedAt: t.confirmedAt
+            }));
+            
+            // Format important questions
+            const importantQuestionsFull = (paper.importantQuestions || []).map(q => ({
+                question: q.question,
+                questionType: q.questionType,
+                notes: q.notes,
+                addedBy: q.addedBy?.name || 'Unknown',
+                addedAt: q.addedAt
+            }));
 
             return {
                 ...paperObj,
                 userRole: paper.userId?.role || null,
                 sections: latestVersion?.generatedContentJSON?.sections || [],
                 importantQuestionsCount: (paper.importantQuestions || []).length,
+                importantQuestionsFull,
                 // Versioning and auto-save info
                 versionsCount: (paper.versions || []).length,
                 importantTopicsCount: importantTopics.length,
-                importantTopics: importantTopics, // Include full topics list
+                importantTopics,
+                // NEW: Important topics with notes
+                importantTopicsWithNotesCount: importantTopicsWithNotes.length,
+                importantTopicsWithNotes,
+                // NEW: CIF topics
+                cifTopicsCount: cifTopics.length,
+                cifTopics,
                 isAutoSaved: paper.isAutoSaved || false,
                 lastAutoSaveAt: paper.lastAutoSaveAt,
+                // Generation status
+                generationStatus: paper.generationStatus || { status: 'pending', progress: 0 },
+                // Config summary
+                configSummary: paper.config ? {
+                    templateName: paper.config.templateName,
+                    marks: paper.config.marks,
+                    duration: paper.config.duration,
+                    sectionsCount: (paper.config.sections || []).length,
+                    questionTypes: paper.config.questionTypes || [],
+                    generateAnswerKey: paper.config.generateAnswerKey || false
+                } : null,
                 currentVersion: latestVersion ? {
                     versionNumber: latestVersion.versionNumber,
                     createdAt: latestVersion.createdAt,
@@ -290,6 +384,116 @@ router.get('/papers/:id/important-topics', auth, adminAuth, async (req, res) => 
             importantTopicsList: paper.importantTopicsList || [],
             paperName: paper.paperName
         });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server Error', error: err.message });
+    }
+});
+
+// Get Full Paper Details (Admin) - All fields including config, topics, questions
+router.get('/papers/:id/full-details', auth, adminAuth, async (req, res) => {
+    try {
+        const paper = await Paper.findById(req.params.id)
+            .populate('userId', 'name email role')
+            .populate('importantQuestions.addedBy', 'name email')
+            .populate('importantTopicsList.addedBy', 'name email')
+            .populate('importantTopicsWithNotes.addedBy', 'name email')
+            .populate('versions.modifiedBy', 'name email');
+            
+        if (!paper) return res.status(404).json({ message: 'Paper not found' });
+
+        // Build comprehensive paper details
+        const fullDetails = {
+            // Basic Info
+            _id: paper._id,
+            paperName: paper.paperName,
+            subject: paper.subject,
+            templateUsed: paper.templateUsed,
+            createdAt: paper.createdAt,
+            updatedAt: paper.updatedAt,
+            
+            // User Info
+            user: {
+                _id: paper.userId?._id,
+                name: paper.userId?.name || paper.userName,
+                email: paper.userId?.email,
+                role: paper.userId?.role
+            },
+            
+            // Auto-save Status
+            isAutoSaved: paper.isAutoSaved,
+            lastAutoSaveAt: paper.lastAutoSaveAt,
+            
+            // Generation Status
+            generationStatus: paper.generationStatus || { status: 'pending', progress: 0 },
+            
+            // Full Configuration
+            config: paper.config,
+            
+            // CIF Topics
+            cifTopics: (paper.cifTopics || []).map(t => ({
+                name: t.name,
+                originalName: t.originalName,
+                isConfirmed: t.isConfirmed,
+                confirmedAt: t.confirmedAt
+            })),
+            
+            // Important Topics (Legacy)
+            importantTopicsList: (paper.importantTopicsList || []).map(t => ({
+                topic: t.topic,
+                priority: t.priority,
+                addedBy: t.addedBy?.name || 'Unknown',
+                addedAt: t.addedAt
+            })),
+            
+            // Important Topics with Notes (New)
+            importantTopicsWithNotes: (paper.importantTopicsWithNotes || []).map(t => ({
+                topic: t.topic,
+                notes: t.notes,
+                priority: t.priority,
+                addedBy: t.addedBy?.name || 'Unknown',
+                addedAt: t.addedAt
+            })),
+            
+            // Important Questions
+            importantQuestions: (paper.importantQuestions || []).map(q => ({
+                _id: q._id,
+                question: q.question,
+                questionType: q.questionType,
+                notes: q.notes,
+                addedBy: q.addedBy?.name || 'Unknown',
+                addedAt: q.addedAt
+            })),
+            
+            // Extracted Data Summary
+            extractedData: {
+                chaptersCount: (paper.extractedData?.chapters || []).length,
+                chapters: paper.extractedData?.chapters || [],
+                uploadedFiles: paper.extractedData?.uploadedFiles || [],
+                detectedExercises: paper.extractedData?.detectedExercises || [],
+                hasCifParsed: !!paper.extractedData?.cifParsed
+            },
+            
+            // Versions Summary
+            versions: (paper.versions || []).map((v, idx) => ({
+                _id: v._id,
+                versionNumber: v.versionNumber,
+                createdAt: v.createdAt,
+                aiModel: v.aiModel,
+                changeReason: v.changeReason || 'generation',
+                modifiedBy: v.modifiedBy?.name || 'Unknown',
+                isCurrent: idx === (paper.currentVersionIndex || paper.versions.length - 1),
+                hasContent: !!(v.generatedContentHTML || v.generatedContentJSON),
+                hasAnswerKey: !!v.generatedAnswerKeyHTML,
+                questionsCount: v.generatedContentJSON?.sections?.reduce((sum, s) => 
+                    sum + (s.questions?.length || 0), 0) || 0
+            })),
+            
+            currentVersionIndex: paper.currentVersionIndex || paper.versions.length - 1,
+            totalVersions: paper.versions?.length || 0
+        };
+
+        res.json(fullDetails);
     } catch (err) {
         console.error(err);
         res.status(500).json({ message: 'Server Error', error: err.message });
