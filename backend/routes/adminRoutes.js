@@ -127,7 +127,6 @@ router.get('/papers', auth, adminAuth, async (req, res) => {
             .populate('importantQuestions.addedBy', 'name email')
             .populate('importantTopicsList.addedBy', 'name email')
             .populate('importantTopicsWithNotes.addedBy', 'name email')
-            .populate('cifTopics')
             .populate('versions.modifiedBy', 'name email')
             .sort({ createdAt: -1 })
             .skip(skip)
@@ -161,6 +160,7 @@ router.get('/papers', auth, adminAuth, async (req, res) => {
             const cifTopics = (paper.cifTopics || []).map(t => ({
                 name: t.name,
                 originalName: t.originalName,
+                weightage: t.weightage || 0,
                 isConfirmed: t.isConfirmed,
                 confirmedAt: t.confirmedAt
             }));
@@ -434,6 +434,7 @@ router.get('/papers/:id/full-details', auth, adminAuth, async (req, res) => {
             cifTopics: (paper.cifTopics || []).map(t => ({
                 name: t.name,
                 originalName: t.originalName,
+                weightage: t.weightage || 0,
                 isConfirmed: t.isConfirmed,
                 confirmedAt: t.confirmedAt
             })),

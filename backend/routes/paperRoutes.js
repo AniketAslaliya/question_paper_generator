@@ -1150,7 +1150,7 @@ router.post('/:id/suggest-questions', auth, async (req, res) => {
 // Save Confirmed CIF Topics (Step 1.5: After parsing, user reviews/edits)
 router.post('/:id/confirm-cif-topics', auth, async (req, res) => {
     try {
-        const { paperId } = req.params;
+        const paperId = req.params.id; // Fixed: was req.params.paperId
         const { confirmedTopics } = req.body;
 
         if (!paperId) {
@@ -1170,10 +1170,11 @@ router.post('/:id/confirm-cif-topics', auth, async (req, res) => {
             return res.status(401).json({ message: 'Unauthorized' });
         }
 
-        // Save confirmed topics
+        // Save confirmed topics - preserve weightage if available
         paper.cifTopics = confirmedTopics.map(topic => ({
-            name: typeof topic === 'string' ? topic : topic.name,
-            originalName: typeof topic === 'string' ? topic : topic.originalName,
+            name: typeof topic === 'string' ? topic : (topic.name || topic.title || 'Unknown'),
+            originalName: typeof topic === 'string' ? topic : (topic.originalName || topic.name || topic.title),
+            weightage: typeof topic === 'object' ? (topic.weightage || 0) : 0,
             isConfirmed: true,
             confirmedAt: new Date()
         }));
@@ -1183,6 +1184,7 @@ router.post('/:id/confirm-cif-topics', auth, async (req, res) => {
         await paper.save();
 
         console.log(`✅ Confirmed ${confirmedTopics.length} CIF topics for paper ${paperId}`);
+        console.log(`📋 Topics saved:`, paper.cifTopics.map(t => `${t.name} (${t.weightage}%)`).join(', '));
 
         if (req.logActivity) {
             await req.logActivity('cif_topics_confirmed', {

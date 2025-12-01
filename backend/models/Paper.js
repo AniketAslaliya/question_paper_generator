@@ -51,6 +51,7 @@ const paperSchema = new mongoose.Schema({
     cifTopics: [{
         name: { type: String, required: true },
         originalName: String, // Original name from CIF parsing
+        weightage: { type: Number, default: 0 }, // Weightage percentage from CIF
         isConfirmed: { type: Boolean, default: true },
         confirmedAt: { type: Date, default: Date.now }
     }],
