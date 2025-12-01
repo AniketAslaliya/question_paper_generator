@@ -25,7 +25,9 @@ const paperSchema = new mongoose.Schema({
             marks: Number,
             questionCount: Number,
             questionType: String,
-            instructions: String
+            instructions: String,
+            sectionDifficulty: { type: String, default: 'Medium' }, // Easy, Medium, Hard
+            questionDifficulties: [{ type: String }] // Per-question difficulty array
         }],
         bloomsTaxonomy: {
             remember: Number,

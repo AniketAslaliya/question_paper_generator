@@ -414,12 +414,15 @@ router.post('/create-phase3', auth, async (req, res) => {
             });
         }
 
-        // Log section details for debugging
+        // Log section details for debugging (including difficulty settings)
         console.log('📋 Section configuration:', paper.config.sections.map(s => ({
             name: s.name,
             marks: s.marks,
             questionCount: s.questionCount,
-            questionType: s.questionType
+            questionType: s.questionType,
+            sectionDifficulty: s.sectionDifficulty || 'Medium',
+            questionDifficultiesCount: s.questionDifficulties?.length || 0,
+            questionDifficulties: s.questionDifficulties || []
         })));
 
         // Auto-save progress: Update status to 30%
